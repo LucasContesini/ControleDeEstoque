@@ -202,6 +202,105 @@ def criar_produto():
     except Exception as e:
         return jsonify({'erro': str(e)}), 500
 
+@app.route('/api/debug/banco', methods=['GET'])
+def debug_banco():
+    """Rota de debug para verificar conexão e dados do banco"""
+    try:
+        ensure_db_initialized()
+        conn = get_db()
+        cursor = get_cursor(conn)
+        
+        info = {
+            'status': 'conectado',
+            'tipo_banco': DATABASE_TYPE,
+            'tabela_existe': False,
+            'estrutura_tabela': [],
+            'total_produtos': 0,
+            'produtos': [],
+            'problemas': []
+        }
+        
+        # Verificar se tabela existe
+        if DATABASE_TYPE == 'postgresql':
+            cursor.execute("""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_name = 'produtos'
+            """)
+            tabela_existe = cursor.fetchone()
+            info['tabela_existe'] = bool(tabela_existe)
+            
+            if tabela_existe:
+                # Estrutura da tabela
+                cursor.execute("""
+                    SELECT column_name, data_type, is_nullable
+                    FROM information_schema.columns
+                    WHERE table_name = 'produtos'
+                    ORDER BY ordinal_position
+                """)
+                info['estrutura_tabela'] = [
+                    {'nome': col[0], 'tipo': col[1], 'nullable': col[2]}
+                    for col in cursor.fetchall()
+                ]
+                
+                # Total de produtos
+                cursor.execute("SELECT COUNT(*) FROM produtos")
+                info['total_produtos'] = cursor.fetchone()['count']
+                
+                # Primeiros 5 produtos
+                cursor.execute("""
+                    SELECT * FROM produtos 
+                    ORDER BY data_atualizacao DESC 
+                    LIMIT 5
+                """)
+                produtos_raw = cursor.fetchall()
+                info['produtos'] = [produto_para_dict(p) for p in produtos_raw]
+                
+                # Verificar problemas
+                cursor.execute("""
+                    SELECT id, titulo, quantidade_mercado_livre, quantidade_shopee
+                    FROM produtos
+                    WHERE quantidade_mercado_livre IS NULL 
+                       OR quantidade_shopee IS NULL
+                """)
+                problemas_raw = cursor.fetchall()
+                info['problemas'] = [
+                    {
+                        'id': p['id'],
+                        'titulo': p['titulo'],
+                        'ml': str(p['quantidade_mercado_livre']),
+                        'shopee': str(p['quantidade_shopee']),
+                        'tipo_ml': str(type(p['quantidade_mercado_livre'])),
+                        'tipo_shopee': str(type(p['quantidade_shopee']))
+                    }
+                    for p in problemas_raw
+                ]
+        else:
+            # SQLite
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='produtos'")
+            info['tabela_existe'] = bool(cursor.fetchone())
+            
+            if info['tabela_existe']:
+                cursor.execute("SELECT COUNT(*) FROM produtos")
+                info['total_produtos'] = cursor.fetchone()[0]
+                
+                cursor.execute("SELECT * FROM produtos ORDER BY data_atualizacao DESC LIMIT 5")
+                produtos_raw = cursor.fetchall()
+                info['produtos'] = [produto_para_dict(p) for p in produtos_raw]
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify(info)
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'status': 'erro',
+            'erro': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
 @app.route('/api/produtos/<int:produto_id>', methods=['GET'])
 def obter_produto(produto_id):
     """Obtém um produto específico"""

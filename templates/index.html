@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Estoque</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><span>📦</span> Controle de Estoque</h1>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button class="btn btn-primary" onclick="abrirModalCriar()">+ Novo Produto</button>
+                <button class="btn btn-secondary" onclick="atualizarProdutos()" id="btn-refresh" title="Atualizar produtos">
+                    🔄 Atualizar
+                </button>
+            </div>
+        </header>
+
+        <div class="filtros">
+            <div class="filtros-linha">
+                <input type="text" id="busca" placeholder="🔍 Buscar produtos..." onkeyup="filtrarProdutos()">
+                <select id="ordenacao" onchange="ordenarProdutos()" class="select-ordenacao">
+                    <option value="recente">📅 Último modificado</option>
+                    <option value="nome">🔤 Nome (A-Z)</option>
+                    <option value="nome-desc">🔤 Nome (Z-A)</option>
+                    <option value="quantidade">📈 Quantidade (maior)</option>
+                    <option value="quantidade-asc">📉 Quantidade (menor)</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="produtos-container" class="produtos-grid">
+            <!-- Produtos serão carregados aqui -->
+        </div>
+
+        <div id="mensagem" class="mensagem"></div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner"></div>
+        <p>Atualizando...</p>
+    </div>
+
+    <!-- Modal Criar/Editar Produto -->
+    <div id="modal-produto" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-titulo">Novo Produto</h2>
+                <span class="fechar" onclick="fecharModal()">&times;</span>
+            </div>
+            <form id="form-produto" onsubmit="salvarProduto(event)">
+                <input type="hidden" id="produto-id">
+                
+                <div class="form-group">
+                    <label for="titulo">Título *</label>
+                    <input type="text" id="titulo" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="descricao">Descrição</label>
+                    <textarea id="descricao" rows="4"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Quantidade por E-commerce *</label>
+                    <div class="quantidades-ecommerce">
+                        <div class="quantidade-item">
+                            <label for="quantidade_ml" style="display: flex; align-items: center; gap: 8px;">
+                                <span>🛒</span> Mercado Livre
+                            </label>
+                            <input type="number" id="quantidade_ml" min="0" value="0" oninput="calcularQuantidadeTotal()">
+                        </div>
+                        <div class="quantidade-item">
+                            <label for="quantidade_shopee" style="display: flex; align-items: center; gap: 8px;">
+                                <span>🛍️</span> Shopee
+                            </label>
+                            <input type="number" id="quantidade_shopee" min="0" value="0" oninput="calcularQuantidadeTotal()">
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px; padding: 10px; background: #f0f0f0; border-radius: 6px;">
+                        <strong>Quantidade Total: <span id="quantidade-total-display">0</span></strong>
+                        <small style="display: block; color: #666; font-size: 0.85rem; margin-top: 5px;">Calculada automaticamente (ML + Shopee)</small>
+                    </div>
+                    <input type="hidden" id="quantidade" value="0">
+                </div>
+
+                <div class="form-group">
+                    <label for="imagem-upload">Imagem</label>
+                    <input type="file" id="imagem-upload" accept="image/*" onchange="previewImagem(event)">
+                    <div id="imagem-preview" class="imagem-preview"></div>
+                    <input type="hidden" id="imagem">
+                </div>
+
+                <div class="form-group">
+                    <label>Especificações Adicionais</label>
+                    <div id="especificacoes-container">
+                        <!-- Especificações dinâmicas -->
+                    </div>
+                    <button type="button" class="btn btn-secondary" onclick="adicionarEspecificacao()">+ Adicionar Especificação</button>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="fecharModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
+

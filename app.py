@@ -47,8 +47,20 @@ try:
 except (OSError, PermissionError):
     pass  # No Vercel, usamos apenas Supabase Storage
 
-# Inicializar banco de dados
-init_db()
+# Inicialização lazy do banco de dados (não inicializar na importação)
+# Será inicializado na primeira requisição
+_db_initialized = False
+
+def ensure_db_initialized():
+    """Garante que o banco de dados está inicializado"""
+    global _db_initialized
+    if not _db_initialized:
+        try:
+            init_db()
+            _db_initialized = True
+        except Exception as e:
+            print(f"⚠️  Erro ao inicializar banco: {e}")
+            # Não falha aqui, tenta novamente na próxima requisição
 
 # Inicializar Supabase Storage se configurado
 if STORAGE_CLOUD_DISPONIVEL:
@@ -72,11 +84,13 @@ def allowed_file(filename):
 @app.route('/')
 def index():
     """Página principal"""
+    ensure_db_initialized()  # Garantir que o banco está pronto
     return render_template('index.html')
 
 @app.route('/api/produtos', methods=['GET'])
 def listar_produtos():
     """Lista todos os produtos"""
+    ensure_db_initialized()
     conn = get_db()
     cursor = get_cursor(conn)
     cursor.execute('SELECT * FROM produtos ORDER BY data_atualizacao DESC')
@@ -89,6 +103,7 @@ def listar_produtos():
 @app.route('/api/produtos', methods=['POST'])
 def criar_produto():
     """Cria um novo produto"""
+    ensure_db_initialized()
     try:
         data = request.get_json()
         
@@ -114,6 +129,7 @@ def criar_produto():
         else:
             especificacoes = json.dumps({}, ensure_ascii=False)
         
+        ensure_db_initialized()
         if DATABASE_TYPE == 'postgresql':
             from datetime import datetime as dt
             data_atual = dt.now()
@@ -147,6 +163,7 @@ def criar_produto():
 @app.route('/api/produtos/<int:produto_id>', methods=['GET'])
 def obter_produto(produto_id):
     """Obtém um produto específico"""
+    ensure_db_initialized()
     conn = get_db()
     cursor = get_cursor(conn)
     placeholder = get_placeholder()
@@ -162,6 +179,7 @@ def obter_produto(produto_id):
 @app.route('/api/produtos/<int:produto_id>', methods=['PUT'])
 def atualizar_produto(produto_id):
     """Atualiza um produto existente"""
+    ensure_db_initialized()
     try:
         data = request.get_json()
         
@@ -288,6 +306,7 @@ def atualizar_produto(produto_id):
 @app.route('/api/produtos/<int:produto_id>', methods=['DELETE'])
 def deletar_produto(produto_id):
     """Deleta um produto"""
+    ensure_db_initialized()
     try:
         conn = get_db()
         cursor = get_cursor(conn)

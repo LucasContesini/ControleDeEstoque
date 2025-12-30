@@ -92,6 +92,36 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
+# Registrar handlers de erro ANTES das rotas para garantir que funcionem
+@app.errorhandler(404)
+def not_found(error):
+    # Se for uma rota de API, retornar JSON
+    if request.path.startswith('/api/'):
+        return jsonify({'erro': 'Rota não encontrada'}), 404
+    # Caso contrário, retornar HTML normal (para páginas)
+    return render_template('index.html'), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    # Se for uma rota de API, retornar JSON
+    if request.path.startswith('/api/'):
+        import traceback
+        traceback.print_exc()
+        return jsonify({'erro': 'Erro interno do servidor'}), 500
+    # Caso contrário, retornar HTML normal
+    return '<h1>Erro interno do servidor</h1>', 500
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Garante que todos os erros retornem JSON para rotas de API"""
+    import traceback
+    traceback.print_exc()
+    # Se for uma rota de API, retornar JSON
+    if request.path.startswith('/api/'):
+        return jsonify({'erro': str(e)}), 500
+    # Caso contrário, deixar o Flask tratar normalmente
+    raise
+
 @app.route('/')
 def index():
     """Página principal"""
@@ -438,20 +468,7 @@ def uploaded_file(filename):
         return redirect(filename)
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-# Handler de erros para retornar JSON ao invés de HTML
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify({'erro': 'Rota não encontrada'}), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    return jsonify({'erro': 'Erro interno do servidor'}), 500
-
-@app.errorhandler(Exception)
-def handle_exception(e):
-    """Garante que todos os erros retornem JSON"""
-    print(f"Erro não tratado: {e}")
-    return jsonify({'erro': str(e)}), 500
+# Handlers de erro já registrados acima (antes das rotas)
 
 # Para desenvolvimento local e produção
 if __name__ == '__main__':

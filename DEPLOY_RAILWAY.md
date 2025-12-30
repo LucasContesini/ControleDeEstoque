@@ -1,8 +1,16 @@
-# Deploy no Railway - Controle de Estoque
+# 🚀 Deploy no Railway - Controle de Estoque
 
-## 🚀 Railway (Recomendado para Flask)
+## ✅ Por que Railway?
 
-O Railway é a melhor opção para aplicações Flask, com suporte nativo e sem limitações de timeout.
+O Railway é a melhor opção para aplicações Flask:
+- ✅ Suporta Flask nativamente
+- ✅ Sem timeout (diferente do Vercel)
+- ✅ Uploads ilimitados
+- ✅ Grátis para começar ($5 crédito/mês)
+- ✅ Deploy automático do GitHub
+- ✅ Logs em tempo real
+- ✅ Variáveis de ambiente fáceis
+- ✅ Detecta Python automaticamente (sem problemas de versão!)
 
 ## 📋 Passo a Passo
 
@@ -31,32 +39,26 @@ SUPABASE_KEY=sb_publishable_gSNmUBC5DQcx-UQKrFeGfw_wlbu27R9
 SUPABASE_SERVICE_KEY=sb_secret_ZjnLl9_3WQzamHBRZHNFhw_J5q2xyhD
 ```
 
-### 4. Configurar comando de start
-No Railway, vá em **Settings** → **Deploy** e configure:
+### 4. Configurar comando de start (Opcional)
+O Railway detecta automaticamente, mas você pode configurar manualmente:
 
 **Start Command:**
 ```bash
-python app.py
+gunicorn app:app --bind 0.0.0.0:$PORT
 ```
 
-Ou use Gunicorn (recomendado para produção):
-```bash
-pip install gunicorn && gunicorn app:app --host 0.0.0.0 --port $PORT
-```
+**Nota:** O arquivo `railway.json` já está configurado com este comando, então o Railway usará automaticamente!
 
 ### 5. Deploy automático
 - O Railway faz deploy automaticamente a cada push no GitHub
 - Você receberá uma URL: `https://seu-projeto.up.railway.app`
 
-## ✅ Vantagens do Railway
+## 📝 Arquivos de Configuração
 
-- ✅ Suporta Flask nativamente
-- ✅ Sem timeout (diferente do Vercel)
-- ✅ Uploads ilimitados
-- ✅ Grátis para começar ($5 crédito/mês)
-- ✅ Deploy automático do GitHub
-- ✅ Logs em tempo real
-- ✅ Variáveis de ambiente fáceis
+O projeto já inclui:
+- ✅ `railway.json` - Configuração do Railway (start command)
+- ✅ `requirements.txt` - Dependências Python (incluindo gunicorn)
+- ✅ Tudo pronto para deploy!
 
 ## 📝 Arquivos Necessários
 

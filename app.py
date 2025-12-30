@@ -35,13 +35,17 @@ except (ImportError, Exception) as e:
     except (ImportError, Exception):
         pass
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', template_folder='templates')
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
 # Criar diretório de uploads se não existir (fallback para armazenamento local)
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+# No Vercel, não podemos criar diretórios, então apenas tenta
+try:
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+except (OSError, PermissionError):
+    pass  # No Vercel, usamos apenas Supabase Storage
 
 # Inicializar banco de dados
 init_db()

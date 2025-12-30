@@ -402,6 +402,7 @@ def upload_imagem():
         filename = timestamp + filename
         
         # Tentar usar Supabase Storage se configurado
+        ensure_storage_initialized()
         if STORAGE_CLOUD_DISPONIVEL and upload_imagem_cloud:
             try:
                 url_imagem = upload_imagem_cloud(file, filename)

@@ -15,7 +15,9 @@ if DATABASE_TYPE == 'postgresql':
         'port': os.getenv('DB_PORT', '5432'),
         'database': os.getenv('DB_NAME', 'controle_estoque'),
         'user': os.getenv('DB_USER', 'postgres'),
-        'password': os.getenv('DB_PASSWORD', '')
+        'password': os.getenv('DB_PASSWORD', ''),
+        'connect_timeout': 10,  # Timeout de conexão de 10 segundos
+        'sslmode': 'require'  # Requer SSL para Supabase
     }
     DATABASE = None  # Não usado para PostgreSQL
 else:

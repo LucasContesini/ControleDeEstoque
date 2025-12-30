@@ -9,16 +9,23 @@ if DATABASE_TYPE == 'postgresql':
     import psycopg2
     from psycopg2.extras import RealDictCursor
     
-    # Configurações do PostgreSQL via variáveis de ambiente
-    DATABASE_CONFIG = {
-        'host': os.getenv('DB_HOST', 'localhost'),
-        'port': os.getenv('DB_PORT', '5432'),
-        'database': os.getenv('DB_NAME', 'controle_estoque'),
-        'user': os.getenv('DB_USER', 'postgres'),
-        'password': os.getenv('DB_PASSWORD', ''),
-        'connect_timeout': 10,  # Timeout de conexão de 10 segundos
-        'sslmode': 'require'  # Requer SSL para Supabase
-    }
+    # Verificar se há DATABASE_URL (connection string completa)
+    DATABASE_URL = os.getenv('DATABASE_URL', '')
+    
+    if DATABASE_URL:
+        # Usar connection string se disponível (mais confiável)
+        DATABASE_CONFIG = DATABASE_URL
+    else:
+        # Configurações do PostgreSQL via variáveis de ambiente individuais
+        DATABASE_CONFIG = {
+            'host': os.getenv('DB_HOST', 'localhost'),
+            'port': os.getenv('DB_PORT', '5432'),
+            'database': os.getenv('DB_NAME', 'controle_estoque'),
+            'user': os.getenv('DB_USER', 'postgres'),
+            'password': os.getenv('DB_PASSWORD', ''),
+            'connect_timeout': 10,  # Timeout de conexão de 10 segundos
+            'sslmode': 'require'  # Requer SSL para Supabase
+        }
     DATABASE = None  # Não usado para PostgreSQL
 else:
     import sqlite3
@@ -27,7 +34,11 @@ else:
 def init_db():
     """Inicializa o banco de dados criando as tabelas necessárias"""
     if DATABASE_TYPE == 'postgresql':
-        conn = psycopg2.connect(**DATABASE_CONFIG)
+        # Se DATABASE_CONFIG é string (connection string), usar diretamente
+        if isinstance(DATABASE_CONFIG, str):
+            conn = psycopg2.connect(DATABASE_CONFIG)
+        else:
+            conn = psycopg2.connect(**DATABASE_CONFIG)
         cursor = conn.cursor()
         
         # Criar tabela se não existir
@@ -119,7 +130,11 @@ def init_db():
 def get_db():
     """Retorna uma conexão com o banco de dados"""
     if DATABASE_TYPE == 'postgresql':
-        conn = psycopg2.connect(**DATABASE_CONFIG)
+        # Se DATABASE_CONFIG é string (connection string), usar diretamente
+        if isinstance(DATABASE_CONFIG, str):
+            conn = psycopg2.connect(DATABASE_CONFIG)
+        else:
+            conn = psycopg2.connect(**DATABASE_CONFIG)
         return conn
     else:
         conn = sqlite3.connect(DATABASE)

@@ -40,6 +40,9 @@ app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
+# Configurar Flask para retornar JSON em caso de erro
+app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
+
 # Criar diretório de uploads se não existir (fallback para armazenamento local)
 # No Vercel, não podemos criar diretórios, então apenas tenta
 try:
@@ -59,10 +62,10 @@ def ensure_db_initialized():
             init_db()
             _db_initialized = True
         except Exception as e:
-            print(f"⚠️  Erro ao inicializar banco: {e}")
-            # Não falha aqui, tenta novamente na próxima requisição
-            # Mas levanta exceção para que a rota possa tratar
-            raise Exception(f"Erro ao conectar ao banco de dados: {str(e)}")
+            error_msg = f"Erro ao conectar ao banco de dados: {str(e)}"
+            print(f"⚠️  {error_msg}")
+            # Levanta exceção para que a rota possa tratar e retornar JSON
+            raise Exception(error_msg)
 
 # Inicialização lazy do Supabase Storage (não inicializar na importação)
 # Será inicializado na primeira requisição que precisar de upload
@@ -92,7 +95,8 @@ def allowed_file(filename):
 @app.route('/')
 def index():
     """Página principal"""
-    ensure_db_initialized()  # Garantir que o banco está pronto
+    # Não inicializar banco na página principal para evitar erros
+    # O banco será inicializado quando necessário nas rotas de API
     return render_template('index.html')
 
 @app.route('/api/produtos', methods=['GET'])

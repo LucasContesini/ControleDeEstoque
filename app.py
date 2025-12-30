@@ -402,5 +402,9 @@ def uploaded_file(filename):
         return redirect(filename)
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+# Para desenvolvimento local e produção
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    # Porta do ambiente (Railway, Render, etc) ou padrão 5001
+    port = int(os.getenv('PORT', 5001))
+    debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
+    app.run(debug=debug, host='0.0.0.0', port=port)

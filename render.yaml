@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: controle-de-estoque
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: DATABASE_TYPE
+        value: postgresql
+      - key: DB_HOST
+        value: db.htrghiefnoaytjmcdbuk.supabase.co
+      - key: DB_PORT
+        value: 5432
+      - key: DB_NAME
+        value: postgres
+      - key: DB_USER
+        value: postgres
+      - key: DB_PASSWORD
+        value: S&mur&i77681271
+      - key: SUPABASE_URL
+        value: https://htrghiefnoaytjmcdbuk.supabase.co
+      - key: SUPABASE_KEY
+        value: sb_publishable_gSNmUBC5DQcx-UQKrFeGfw_wlbu27R9
+      - key: SUPABASE_SERVICE_KEY
+        value: sb_secret_ZjnLl9_3WQzamHBRZHNFhw_J5q2xyhD
+

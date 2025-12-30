@@ -13,8 +13,31 @@ if DATABASE_TYPE == 'postgresql':
     DATABASE_URL = os.getenv('DATABASE_URL', '')
     
     if DATABASE_URL:
-        # Usar connection string se disponível (mais confiável)
-        DATABASE_CONFIG = DATABASE_URL
+        # Se for URL interna do Railway, tentar usar variáveis individuais primeiro
+        if 'railway.internal' in DATABASE_URL:
+            # URL interna do Railway - usar variáveis individuais se disponíveis
+            db_host = os.getenv('PGHOST') or os.getenv('DB_HOST', '')
+            db_port = os.getenv('PGPORT') or os.getenv('DB_PORT', '5432')
+            db_name = os.getenv('PGDATABASE') or os.getenv('DB_NAME', '')
+            db_user = os.getenv('PGUSER') or os.getenv('DB_USER', '')
+            db_password = os.getenv('PGPASSWORD') or os.getenv('DB_PASSWORD', '')
+            
+            if db_host and db_name and db_user and db_password:
+                # Construir URL pública se tiver variáveis individuais
+                DATABASE_CONFIG = {
+                    'host': db_host,
+                    'port': db_port,
+                    'database': db_name,
+                    'user': db_user,
+                    'password': db_password,
+                    'connect_timeout': 10
+                }
+            else:
+                # Tentar usar URL interna mesmo (pode funcionar se estiver na mesma rede)
+                DATABASE_CONFIG = DATABASE_URL
+        else:
+            # URL externa/pública - usar diretamente
+            DATABASE_CONFIG = DATABASE_URL
     else:
         # Configurações do PostgreSQL via variáveis de ambiente individuais
         DATABASE_CONFIG = {

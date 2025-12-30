@@ -186,12 +186,12 @@ def produto_para_dict(produto):
     else:
         # SQLite
         try:
-            quantidade_ml = produto['quantidade_mercado_livre'] if produto['quantidade_mercado_livre'] is not None else 0
+            quantidade_ml = int(produto['quantidade_mercado_livre'] if produto['quantidade_mercado_livre'] is not None else 0)
         except (KeyError, IndexError):
             quantidade_ml = 0
         
         try:
-            quantidade_shopee = produto['quantidade_shopee'] if produto['quantidade_shopee'] is not None else 0
+            quantidade_shopee = int(produto['quantidade_shopee'] if produto['quantidade_shopee'] is not None else 0)
         except (KeyError, IndexError):
             quantidade_shopee = 0
         

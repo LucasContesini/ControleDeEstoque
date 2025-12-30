@@ -61,6 +61,8 @@ def ensure_db_initialized():
         except Exception as e:
             print(f"⚠️  Erro ao inicializar banco: {e}")
             # Não falha aqui, tenta novamente na próxima requisição
+            # Mas levanta exceção para que a rota possa tratar
+            raise Exception(f"Erro ao conectar ao banco de dados: {str(e)}")
 
 # Inicialização lazy do Supabase Storage (não inicializar na importação)
 # Será inicializado na primeira requisição que precisar de upload
@@ -431,6 +433,21 @@ def uploaded_file(filename):
         from flask import redirect
         return redirect(filename)
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+# Handler de erros para retornar JSON ao invés de HTML
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'erro': 'Rota não encontrada'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'erro': 'Erro interno do servidor'}), 500
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Garante que todos os erros retornem JSON"""
+    print(f"Erro não tratado: {e}")
+    return jsonify({'erro': str(e)}), 500
 
 # Para desenvolvimento local e produção
 if __name__ == '__main__':

@@ -62,19 +62,25 @@ def ensure_db_initialized():
             print(f"⚠️  Erro ao inicializar banco: {e}")
             # Não falha aqui, tenta novamente na próxima requisição
 
-# Inicializar Supabase Storage se configurado
-if STORAGE_CLOUD_DISPONIVEL:
-    try:
-        if criar_bucket_se_nao_existir and callable(criar_bucket_se_nao_existir):
-            criar_bucket_se_nao_existir()
-        if not USAR_S3:
-            print("✅ Supabase Storage configurado para imagens (API REST)")
-        else:
-            print("✅ Supabase Storage configurado para imagens (S3)")
-    except Exception as e:
-        print(f"⚠️  Aviso: {e}")
-else:
-    print("ℹ️  Usando armazenamento local para imagens")
+# Inicialização lazy do Supabase Storage (não inicializar na importação)
+# Será inicializado na primeira requisição que precisar de upload
+_storage_initialized = False
+
+def ensure_storage_initialized():
+    """Garante que o Supabase Storage está inicializado"""
+    global _storage_initialized
+    if not _storage_initialized and STORAGE_CLOUD_DISPONIVEL:
+        try:
+            if criar_bucket_se_nao_existir and callable(criar_bucket_se_nao_existir):
+                criar_bucket_se_nao_existir()
+            if not USAR_S3:
+                print("✅ Supabase Storage configurado para imagens (API REST)")
+            else:
+                print("✅ Supabase Storage configurado para imagens (S3)")
+            _storage_initialized = True
+        except Exception as e:
+            print(f"⚠️  Aviso ao inicializar storage: {e}")
+            # Não falha aqui, tenta novamente na próxima requisição
 
 def allowed_file(filename):
     """Verifica se o arquivo tem extensão permitida"""

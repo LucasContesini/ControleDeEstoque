@@ -8,6 +8,7 @@ import os
 # Adicionar o diretório raiz ao path para importar app
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Importar app - a inicialização do banco será lazy (só quando necessário)
 from app import app
 
 # O Vercel automaticamente detecta o objeto 'app' do Flask

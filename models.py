@@ -168,8 +168,8 @@ def produto_para_dict(produto):
     """Converte um produto (Row/Dict) em dicionário"""
     if DATABASE_TYPE == 'postgresql':
         # PostgreSQL retorna dict-like object
-        quantidade_ml = produto.get('quantidade_mercado_livre', 0) or 0
-        quantidade_shopee = produto.get('quantidade_shopee', 0) or 0
+        quantidade_ml = int(produto.get('quantidade_mercado_livre', 0) or 0)
+        quantidade_shopee = int(produto.get('quantidade_shopee', 0) or 0)
         quantidade_total = quantidade_ml + quantidade_shopee  # Calcular total
         return {
             'id': produto['id'],

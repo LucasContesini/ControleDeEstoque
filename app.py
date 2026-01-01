@@ -206,6 +206,30 @@ def criar_produto():
 def debug_banco():
     """Rota de debug para verificar conexão e dados do banco"""
     try:
+        # Mostrar informações de configuração
+        import os
+        from models import DATABASE_CONFIG, DATABASE_TYPE
+        
+        config_info = {
+            'tipo_banco': DATABASE_TYPE,
+            'is_vercel': os.getenv('VERCEL', '') != '' or os.getenv('VERCEL_ENV', '') != '',
+            'use_pooling': os.getenv('USE_CONNECTION_POOLING', 'auto'),
+            'db_port': os.getenv('DB_PORT', 'não definido'),
+            'tem_database_url': bool(os.getenv('DATABASE_URL', '')),
+        }
+        
+        # Mascarar senha se for string
+        if isinstance(DATABASE_CONFIG, str):
+            config_info['database_config'] = DATABASE_CONFIG.split('@')[0] + '@***' if '@' in DATABASE_CONFIG else '***'
+        else:
+            config_info['database_config'] = {
+                'host': DATABASE_CONFIG.get('host', ''),
+                'port': DATABASE_CONFIG.get('port', ''),
+                'database': DATABASE_CONFIG.get('database', ''),
+                'user': DATABASE_CONFIG.get('user', ''),
+                'password': '***',
+            }
+        
         ensure_db_initialized()
         conn = get_db()
         cursor = get_cursor(conn)
@@ -290,6 +314,9 @@ def debug_banco():
         
         cursor.close()
         conn.close()
+        
+        # Adicionar informações de configuração ao retorno
+        info['configuracao'] = config_info
         
         return jsonify(info)
         

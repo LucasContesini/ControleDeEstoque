@@ -12,9 +12,21 @@ if DATABASE_TYPE == 'postgresql':
     # Verificar se há DATABASE_URL (connection string completa)
     DATABASE_URL = os.getenv('DATABASE_URL', '')
     
+    # Detectar se está no Vercel (serverless)
+    IS_VERCEL = os.getenv('VERCEL', '') != '' or os.getenv('VERCEL_ENV', '') != ''
+    
     # Verificar se deve usar connection pooling (porta 6543)
     # Connection pooling é mais confiável em ambientes serverless como Vercel
-    USE_POOLING = os.getenv('USE_CONNECTION_POOLING', 'false').lower() == 'true'
+    # Por padrão, usar pooling no Vercel, a menos que explicitamente desabilitado
+    USE_POOLING_ENV = os.getenv('USE_CONNECTION_POOLING', '').lower()
+    if USE_POOLING_ENV == 'false':
+        USE_POOLING = False
+    elif USE_POOLING_ENV == 'true':
+        USE_POOLING = True
+    else:
+        # Se não especificado, usar pooling no Vercel por padrão
+        USE_POOLING = IS_VERCEL
+    
     POOLING_PORT = '6543'
     
     if DATABASE_URL:
@@ -26,10 +38,13 @@ if DATABASE_TYPE == 'postgresql':
         else:
             DATABASE_CONFIG = DATABASE_URL
         
-        # Se usar pooling e a URL não especificar porta, usar porta 6543
-        if USE_POOLING and ':6543' not in DATABASE_CONFIG and ':5432' not in DATABASE_CONFIG:
-            # Substituir porta padrão por 6543
-            if '@' in DATABASE_CONFIG and '/' in DATABASE_CONFIG:
+        # Se usar pooling, substituir porta 5432 por 6543 na URL
+        if USE_POOLING:
+            # Substituir :5432 por :6543 se existir
+            if ':5432' in DATABASE_CONFIG:
+                DATABASE_CONFIG = DATABASE_CONFIG.replace(':5432', f':{POOLING_PORT}')
+            # Se não tiver porta especificada, adicionar porta de pooling
+            elif ':6543' not in DATABASE_CONFIG and '@' in DATABASE_CONFIG:
                 parts = DATABASE_CONFIG.split('@')
                 if len(parts) == 2:
                     host_part = parts[1].split('/')[0]
@@ -38,7 +53,15 @@ if DATABASE_TYPE == 'postgresql':
                         DATABASE_CONFIG = DATABASE_CONFIG.replace(f"@{host_part}", f"@{host_part}:{POOLING_PORT}")
     else:
         # Configurações do PostgreSQL via variáveis de ambiente individuais
-        db_port = os.getenv('DB_PORT', POOLING_PORT if USE_POOLING else '5432')
+        db_port_env = os.getenv('DB_PORT', '')
+        if db_port_env:
+            db_port = db_port_env
+        elif USE_POOLING:
+            # Se usar pooling e não especificar porta, usar 6543
+            db_port = POOLING_PORT
+        else:
+            db_port = '5432'
+        
         DATABASE_CONFIG = {
             'host': os.getenv('DB_HOST', 'localhost'),
             'port': db_port,

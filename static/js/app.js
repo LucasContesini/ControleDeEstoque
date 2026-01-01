@@ -257,17 +257,28 @@ function renderizarEspecificacoes(especificacoesStr) {
 }
 
 // Filtrar produtos
+// Debounce para busca (aguarda 300ms após parar de digitar)
+let buscaTimeout = null;
+
 function filtrarProdutos() {
-    const busca = document.getElementById('busca').value.toLowerCase();
-    if (busca === '') {
-        produtosFiltrados = [...produtos];
-    } else {
-        produtosFiltrados = produtos.filter(produto => 
-            produto.titulo.toLowerCase().includes(busca) ||
-            (produto.descricao && produto.descricao.toLowerCase().includes(busca))
-        );
+    // Limpar timeout anterior
+    if (buscaTimeout) {
+        clearTimeout(buscaTimeout);
     }
-    ordenarProdutos();
+    
+    // Aguardar 300ms antes de filtrar
+    buscaTimeout = setTimeout(() => {
+        const busca = document.getElementById('busca').value.toLowerCase();
+        if (busca === '') {
+            produtosFiltrados = [...produtos];
+        } else {
+            produtosFiltrados = produtos.filter(produto => 
+                produto.titulo.toLowerCase().includes(busca) ||
+                (produto.descricao && produto.descricao.toLowerCase().includes(busca))
+            );
+        }
+        ordenarProdutos();
+    }, 300);
 }
 
 // Ordenar produtos
@@ -582,10 +593,25 @@ async function salvarProduto(event) {
     event.preventDefault();
     
     const id = document.getElementById('produto-id').value;
-    const titulo = document.getElementById('titulo').value;
-    const descricao = document.getElementById('descricao').value;
-    const quantidade_ml = parseInt(document.getElementById('quantidade_ml').value) || 0;
-    const quantidade_shopee = parseInt(document.getElementById('quantidade_shopee').value) || 0;
+    const titulo = document.getElementById('titulo').value.trim();
+    const descricao = document.getElementById('descricao').value.trim();
+    
+    // Validar quantidades (não permitir negativas)
+    let quantidade_ml = parseInt(document.getElementById('quantidade_ml').value) || 0;
+    let quantidade_shopee = parseInt(document.getElementById('quantidade_shopee').value) || 0;
+    
+    // Garantir que não sejam negativas
+    if (quantidade_ml < 0) {
+        quantidade_ml = 0;
+        document.getElementById('quantidade_ml').value = 0;
+        mostrarToast('⚠️ Quantidade do Mercado Livre não pode ser negativa', 'aviso');
+    }
+    if (quantidade_shopee < 0) {
+        quantidade_shopee = 0;
+        document.getElementById('quantidade_shopee').value = 0;
+        mostrarToast('⚠️ Quantidade da Shopee não pode ser negativa', 'aviso');
+    }
+    
     const quantidade = quantidade_ml + quantidade_shopee; // Calcular total automaticamente
     const imagem = document.getElementById('imagem').value;
     
@@ -647,14 +673,15 @@ async function salvarProduto(event) {
         const data = await response.json();
         
         if (response.ok) {
-            mostrarMensagem(data.mensagem || 'Produto salvo com sucesso!', 'sucesso');
+            const mensagem = modoEdicao ? `✅ "${titulo}" atualizado com sucesso!` : `✅ "${titulo}" criado com sucesso!`;
+            mostrarToast(mensagem, 'sucesso');
             fecharModal();
             await carregarProdutos();
             // Restaurar ordenação após recarregar
             document.getElementById('ordenacao').value = ordenacaoAtual;
             ordenarProdutos();
         } else {
-            mostrarMensagem(data.erro || 'Erro ao salvar produto', 'erro');
+            mostrarToast(data.erro || 'Erro ao salvar produto', 'erro');
             // Reabilitar botões em caso de erro
             btnSalvar.disabled = false;
             btnSalvar.style.opacity = '1';
@@ -665,7 +692,7 @@ async function salvarProduto(event) {
             }
         }
     } catch (error) {
-        mostrarMensagem('Erro ao salvar produto: ' + error.message, 'erro');
+        mostrarToast('Erro ao salvar produto: ' + error.message, 'erro');
         // Reabilitar botões em caso de erro
         btnSalvar.disabled = false;
         btnSalvar.style.opacity = '1';
@@ -677,9 +704,14 @@ async function salvarProduto(event) {
     }
 }
 
-// Deletar produto
+// Deletar produto com confirmação melhorada
 async function deletarProduto(id) {
-    if (!confirm('Tem certeza que deseja excluir este produto?')) {
+    // Buscar nome do produto para mostrar na confirmação
+    const produto = produtos.find(p => p.id === id);
+    const nomeProduto = produto ? produto.titulo : 'este produto';
+    
+    // Modal de confirmação customizado
+    if (!confirm(`⚠️ Tem certeza que deseja excluir "${nomeProduto}"?\n\nEsta ação não pode ser desfeita.`)) {
         return;
     }
     
@@ -691,29 +723,58 @@ async function deletarProduto(id) {
         const data = await response.json();
         
         if (response.ok) {
-            mostrarMensagem(data.mensagem || 'Produto excluído com sucesso!', 'sucesso');
+            mostrarToast(`✅ "${nomeProduto}" excluído com sucesso!`, 'sucesso');
             await carregarProdutos();
             // Restaurar ordenação após recarregar
             document.getElementById('ordenacao').value = ordenacaoAtual;
             ordenarProdutos();
         } else {
-            mostrarMensagem(data.erro || 'Erro ao excluir produto', 'erro');
+            mostrarToast(data.erro || 'Erro ao excluir produto', 'erro');
         }
     } catch (error) {
-        mostrarMensagem('Erro ao excluir produto: ' + error.message, 'erro');
+        mostrarToast('Erro ao excluir produto: ' + error.message, 'erro');
     }
 }
 
-// Mostrar mensagem
-function mostrarMensagem(texto, tipo = 'info') {
-    const mensagem = document.getElementById('mensagem');
-    mensagem.textContent = texto;
-    mensagem.className = `mensagem ${tipo}`;
-    mensagem.style.display = 'block';
+// Sistema de Toast Notifications
+function mostrarToast(mensagem, tipo = 'info') {
+    // Remover toasts anteriores
+    const toastsExistentes = document.querySelectorAll('.toast');
+    toastsExistentes.forEach(toast => toast.remove());
     
+    // Criar novo toast
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${tipo}`;
+    
+    // Ícone baseado no tipo
+    const icones = {
+        'sucesso': '✅',
+        'erro': '❌',
+        'aviso': '⚠️',
+        'info': 'ℹ️'
+    };
+    
+    toast.innerHTML = `
+        <span class="toast-icon">${icones[tipo] || icones.info}</span>
+        <span class="toast-mensagem">${mensagem}</span>
+        <button class="toast-fechar" onclick="this.parentElement.remove()">&times;</button>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    // Animação de entrada
+    setTimeout(() => toast.classList.add('toast-show'), 10);
+    
+    // Remover automaticamente após 4 segundos
     setTimeout(() => {
-        mensagem.style.display = 'none';
-    }, 3000);
+        toast.classList.remove('toast-show');
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
+}
+
+// Manter função antiga para compatibilidade (deprecated)
+function mostrarMensagem(texto, tipo = 'info') {
+    mostrarToast(texto, tipo);
 }
 
 // Fechar modal ao clicar fora
@@ -723,4 +784,39 @@ window.onclick = function(event) {
         fecharModal();
     }
 }
+
+// Atalhos de teclado
+document.addEventListener('keydown', function(event) {
+    // Ctrl+N ou Cmd+N para novo produto
+    if ((event.ctrlKey || event.metaKey) && event.key === 'n') {
+        event.preventDefault();
+        const modal = document.getElementById('modal-produto');
+        if (modal.style.display !== 'block') {
+            abrirModalCriar();
+        }
+    }
+    
+    // Esc para fechar modal
+    if (event.key === 'Escape') {
+        const modal = document.getElementById('modal-produto');
+        if (modal.style.display === 'block') {
+            fecharModal();
+        }
+    }
+    
+    // Enter para salvar (se estiver no modal e não estiver em textarea)
+    if (event.key === 'Enter' && !event.shiftKey) {
+        const modal = document.getElementById('modal-produto');
+        const activeElement = document.activeElement;
+        if (modal.style.display === 'block' && 
+            activeElement.tagName !== 'TEXTAREA' && 
+            activeElement.type !== 'submit') {
+            const form = document.getElementById('form-produto');
+            if (form && !activeElement.closest('.especificacao-item')) {
+                event.preventDefault();
+                form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+            }
+        }
+    }
+});
 

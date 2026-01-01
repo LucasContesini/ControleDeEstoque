@@ -154,8 +154,15 @@ def criar_produto():
             return jsonify({'erro': 'Título é obrigatório'}), 400
         
         descricao = data.get('descricao', '').strip()
+        
+        # Validar quantidades (não permitir negativas)
         quantidade_ml = int(data.get('quantidade_mercado_livre', 0))
         quantidade_shopee = int(data.get('quantidade_shopee', 0))
+        
+        if quantidade_ml < 0:
+            return jsonify({'erro': 'Quantidade do Mercado Livre não pode ser negativa'}), 400
+        if quantidade_shopee < 0:
+            return jsonify({'erro': 'Quantidade da Shopee não pode ser negativa'}), 400
         imagem = data.get('imagem', '')
         especificacoes = data.get('especificacoes', '')
         
@@ -385,6 +392,17 @@ def atualizar_produto(produto_id):
         
         quantidade_ml = int(data.get('quantidade_mercado_livre', quantidade_ml_existente))
         quantidade_shopee = int(data.get('quantidade_shopee', quantidade_shopee_existente))
+        
+        # Validar quantidades (não permitir negativas)
+        if quantidade_ml < 0:
+            cursor.close()
+            conn.close()
+            return jsonify({'erro': 'Quantidade do Mercado Livre não pode ser negativa'}), 400
+        if quantidade_shopee < 0:
+            cursor.close()
+            conn.close()
+            return jsonify({'erro': 'Quantidade da Shopee não pode ser negativa'}), 400
+        
         imagem_nova = data.get('imagem', produto['imagem'])
         imagem_antiga = produto['imagem']
         especificacoes = data.get('especificacoes', produto['especificacoes'])

@@ -582,6 +582,84 @@ form {
     justify-content: flex-end;
 }
 
+/* Sistema de Toast Notifications */
+.toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    min-width: 300px;
+    max-width: 500px;
+    padding: 16px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    opacity: 0;
+    transform: translateX(400px);
+    transition: all 0.3s ease;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.toast.toast-show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.toast-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.toast-mensagem {
+    flex: 1;
+    word-wrap: break-word;
+}
+
+.toast-fechar {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+    flex-shrink: 0;
+}
+
+.toast-fechar:hover {
+    opacity: 1;
+}
+
+.toast-sucesso {
+    background: #28a745;
+    color: white;
+}
+
+.toast-erro {
+    background: #dc3545;
+    color: white;
+}
+
+.toast-aviso {
+    background: #ffc107;
+    color: #333;
+}
+
+.toast-info {
+    background: #17a2b8;
+    color: white;
+}
+
+/* Mensagem antiga (mantida para compatibilidade) */
 .mensagem {
     position: fixed;
     top: 20px;

@@ -91,7 +91,7 @@ def upload_imagem_cloud(file, filename):
         raise Exception(f"Erro ao fazer upload para Supabase: {error_msg}")
 
 def upload_via_rest_api(file, filename):
-    """Upload usando API REST diretamente (compatível com novas chaves)"""
+    """Upload usando API REST diretamente (compatível com chaves sb_secret_ e JWT)"""
     # Ler o arquivo
     file_content = file.read()
     file.seek(0)
@@ -109,25 +109,45 @@ def upload_via_rest_api(file, filename):
     url_base = SUPABASE_URL.rstrip('/')
     upload_url = f"{url_base}/storage/v1/object/{BUCKET_NAME}/{filename}"
     
-    # Verificar se a chave é JWT (começa com eyJ) ou nova chave (sb_secret_)
-    # A API REST de Storage requer chaves JWT tradicionais
+    # Headers - tentar com ambas as chaves (sb_secret_ e JWT)
     service_key = SUPABASE_SERVICE_KEY
-    if not service_key.startswith('eyJ'):
-        raise Exception("A API REST do Supabase Storage requer chaves JWT tradicionais (que começam com 'eyJ...'), não as novas chaves 'sb_secret_'. Use a biblioteca Supabase ou obtenha a service_role key JWT em: Supabase Dashboard → Settings → API → service_role key")
-    
-    # Headers com a service key (deve ser JWT)
     headers = {
-        "Authorization": f"Bearer {service_key}",
         "Content-Type": content_type,
         "x-upsert": "true"  # Permite sobrescrever arquivo existente
     }
+    
+    # Para chaves sb_secret_, usar formato diferente
+    if service_key.startswith('sb_secret_'):
+        # Chaves sb_secret_ podem precisar de formato diferente
+        # Tentar com Authorization Bearer primeiro
+        headers["Authorization"] = f"Bearer {service_key}"
+    elif service_key.startswith('eyJ'):
+        # Chaves JWT tradicionais
+        headers["Authorization"] = f"Bearer {service_key}"
+    else:
+        # Tentar como Bearer de qualquer forma
+        headers["Authorization"] = f"Bearer {service_key}"
     
     # Fazer upload
     response = requests.put(upload_url, data=file_content, headers=headers)
     
     if response.status_code not in [200, 201]:
         error_detail = response.text
-        raise Exception(f"Erro ao fazer upload: {response.status_code} - {error_detail}")
+        # Se falhar com sb_secret_, pode ser que precise usar apikey header
+        if service_key.startswith('sb_secret_') and response.status_code in [401, 403]:
+            # Tentar com header apikey em vez de Authorization
+            headers_alt = {
+                "apikey": service_key,
+                "Authorization": f"Bearer {service_key}",
+                "Content-Type": content_type,
+                "x-upsert": "true"
+            }
+            response = requests.put(upload_url, data=file_content, headers=headers_alt)
+            if response.status_code not in [200, 201]:
+                error_detail = response.text
+                raise Exception(f"Erro ao fazer upload: {response.status_code} - {error_detail}")
+        else:
+            raise Exception(f"Erro ao fazer upload: {response.status_code} - {error_detail}")
     
     # Construir URL pública
     public_url = f"{url_base}/storage/v1/object/public/{BUCKET_NAME}/{filename}"

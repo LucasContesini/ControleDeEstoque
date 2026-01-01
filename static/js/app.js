@@ -296,10 +296,31 @@ function filtrarProdutos() {
         if (busca === '') {
             produtosFiltrados = [...produtos];
         } else {
-            produtosFiltrados = produtos.filter(produto => 
-                produto.titulo.toLowerCase().includes(busca) ||
-                (produto.descricao && produto.descricao.toLowerCase().includes(busca))
-            );
+            produtosFiltrados = produtos.filter(produto => {
+                // Buscar no título
+                if (produto.titulo.toLowerCase().includes(busca)) return true;
+                
+                // Buscar na descrição
+                if (produto.descricao && produto.descricao.toLowerCase().includes(busca)) return true;
+                
+                // Buscar nas especificações
+                if (produto.especificacoes) {
+                    const especificacoes = typeof produto.especificacoes === 'string' 
+                        ? JSON.parse(produto.especificacoes) 
+                        : produto.especificacoes;
+                    
+                    if (typeof especificacoes === 'object' && especificacoes !== null) {
+                        for (const [chave, valor] of Object.entries(especificacoes)) {
+                            if (chave.toLowerCase().includes(busca) || 
+                                String(valor).toLowerCase().includes(busca)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                
+                return false;
+            });
         }
         ordenarProdutos();
     }, 300);
@@ -569,49 +590,132 @@ function fecharModal() {
     document.getElementById('modal-produto').style.display = 'none';
 }
 
-// Preview de imagem
+// Comprimir imagem usando Canvas
+function comprimirImagem(file, maxWidth = 1920, maxHeight = 1920, quality = 0.8) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                
+                // Redimensionar se necessário
+                if (width > maxWidth || height > maxHeight) {
+                    const ratio = Math.min(maxWidth / width, maxHeight / height);
+                    width = width * ratio;
+                    height = height * ratio;
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // Converter para blob
+                canvas.toBlob((blob) => {
+                    if (blob) {
+                        resolve(blob);
+                    } else {
+                        reject(new Error('Erro ao comprimir imagem'));
+                    }
+                }, 'image/jpeg', quality);
+            };
+            img.onerror = reject;
+            img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+// Preview de imagem com compressão e barra de progresso
 async function previewImagem(event) {
     const file = event.target.files[0];
     if (!file) return;
     
+    // Validar tamanho (máximo 10MB antes de compressão)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+        mostrarToast('Imagem muito grande! Máximo 10MB.', 'erro');
+        event.target.value = '';
+        return;
+    }
+    
     const previewContainer = document.getElementById('imagem-preview');
     
-    // Mostrar loading
+    // Mostrar barra de progresso
     previewContainer.innerHTML = `
-        <div class="upload-loading">
-            <div class="spinner"></div>
-            <p>Enviando imagem...</p>
+        <div class="upload-progress-container">
+            <div class="upload-progress-bar">
+                <div class="upload-progress-fill" id="upload-progress-fill" style="width: 0%"></div>
+            </div>
+            <p class="upload-progress-text" id="upload-progress-text">Comprimindo imagem...</p>
         </div>
     `;
     
-    // Upload da imagem
-    const formData = new FormData();
-    formData.append('imagem', file);
+    const progressFill = document.getElementById('upload-progress-fill');
+    const progressText = document.getElementById('upload-progress-text');
     
     try {
+        // Atualizar progresso
+        progressFill.style.width = '30%';
+        progressText.textContent = 'Comprimindo imagem...';
+        
+        // Comprimir imagem
+        const compressedFile = await comprimirImagem(file);
+        
+        progressFill.style.width = '60%';
+        progressText.textContent = 'Enviando para servidor...';
+        
+        // Upload da imagem comprimida
+        const formData = new FormData();
+        formData.append('imagem', compressedFile, file.name);
+        
+        // Simular progresso do upload (já que fetch não tem progresso nativo)
+        const progressInterval = setInterval(() => {
+            const currentWidth = parseInt(progressFill.style.width);
+            if (currentWidth < 90) {
+                progressFill.style.width = (currentWidth + 5) + '%';
+            }
+        }, 100);
+        
         const response = await fetch('/api/upload', {
             method: 'POST',
             body: formData
         });
         
+        clearInterval(progressInterval);
+        progressFill.style.width = '100%';
+        progressText.textContent = 'Concluído!';
+        
         const data = await response.json();
         if (response.ok) {
             document.getElementById('imagem').value = data.imagem;
             
-            // Preview
+            // Preview da imagem comprimida
             const reader = new FileReader();
             reader.onload = (e) => {
                 previewContainer.innerHTML = 
-                    `<img src="${e.target.result}" alt="Preview">`;
+                    `<img src="${e.target.result}" alt="Preview" class="imagem-preview-img">`;
             };
-            reader.readAsDataURL(file);
+            reader.readAsDataURL(compressedFile);
+            
+            // Mostrar tamanho reduzido se houver redução significativa
+            const tamanhoOriginal = (file.size / 1024).toFixed(1);
+            const tamanhoComprimido = (compressedFile.size / 1024).toFixed(1);
+            if (compressedFile.size < file.size * 0.9) {
+                mostrarToast(`Imagem comprimida: ${tamanhoOriginal}KB → ${tamanhoComprimido}KB`, 'sucesso');
+            }
         } else {
             previewContainer.innerHTML = '';
-            mostrarMensagem(data.erro || 'Erro ao fazer upload da imagem', 'erro');
+            mostrarToast(data.erro || 'Erro ao fazer upload da imagem', 'erro');
         }
     } catch (error) {
         previewContainer.innerHTML = '';
-        mostrarMensagem('Erro ao fazer upload: ' + error.message, 'erro');
+        mostrarToast('Erro ao processar imagem: ' + error.message, 'erro');
     }
 }
 

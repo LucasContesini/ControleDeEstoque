@@ -41,6 +41,31 @@ app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 # Configurar Flask para retornar JSON em caso de erro
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
 
+# Middleware para garantir que todas as rotas /api/* retornem JSON
+@app.before_request
+def before_request():
+    """Garante que rotas de API sempre retornem JSON"""
+    if request.path.startswith('/api/'):
+        # Forçar content-type JSON para rotas de API
+        pass  # O jsonify já faz isso, mas podemos adicionar headers se necessário
+
+@app.after_request
+def after_request(response):
+    """Garante que respostas de API sempre sejam JSON"""
+    if request.path.startswith('/api/'):
+        # Se a resposta não for JSON e tiver erro, converter para JSON
+        if response.status_code >= 400 and response.content_type != 'application/json':
+            try:
+                # Tentar parsear como HTML e converter para JSON
+                if response.data and b'<html' in response.data:
+                    return jsonify({'erro': 'Erro no servidor'}), response.status_code
+            except:
+                pass
+        # Garantir que o content-type seja JSON
+        if response.content_type != 'application/json':
+            response.content_type = 'application/json'
+    return response
+
 # Criar diretório de uploads se não existir (fallback para armazenamento local)
 # No Vercel, não podemos criar diretórios, então apenas tenta
 try:

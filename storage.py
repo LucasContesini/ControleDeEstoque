@@ -28,8 +28,12 @@ def get_supabase_client(use_service_key=False):
         # Usar cliente em cache se já existir
         if _supabase_service_client is None:
             url = SUPABASE_URL.rstrip('/')
-            # Biblioteca Supabase não precisa de barra final
-            _supabase_service_client = create_client(url, SUPABASE_SERVICE_KEY)
+            # Biblioteca Supabase aceita URL com ou sem barra final
+            # Funciona com chaves sb_secret_ e JWT (eyJ...)
+            try:
+                _supabase_service_client = create_client(url, SUPABASE_SERVICE_KEY)
+            except Exception as e:
+                raise ValueError(f"Erro ao criar cliente Supabase com service key: {str(e)}. Verifique se SUPABASE_URL e SUPABASE_SERVICE_KEY estão corretos.")
         return _supabase_service_client
     
     # Cliente normal com anon key
@@ -52,25 +56,16 @@ def upload_imagem_cloud(file, filename):
     Retorna a URL pública da imagem
     """
     try:
-        # Tentar usar biblioteca Supabase primeiro (funciona com chaves sb_* e JWT)
+        # Sempre tentar biblioteca Supabase primeiro (funciona com chaves sb_* e JWT)
         if SUPABASE_LIB_AVAILABLE and SUPABASE_URL and SUPABASE_SERVICE_KEY:
-            try:
-                return upload_via_library(file, filename)
-            except Exception as lib_error:
-                # Se biblioteca falhar, tentar API REST
-                error_msg = str(lib_error).lower()
-                if "invalid" not in error_msg and "401" not in error_msg and "403" not in error_msg:
-                    # Erro não relacionado a autenticação, tentar API REST
-                    if SUPABASE_SERVICE_KEY.startswith('eyJ'):
-                        return upload_via_rest_api(file, filename)
-                    raise
+            return upload_via_library(file, filename)
         
-        # Se não tiver biblioteca ou falhar, tentar API REST (só funciona com JWT)
+        # Se não tiver biblioteca, tentar API REST (só funciona com JWT)
         if SUPABASE_URL and SUPABASE_SERVICE_KEY:
             if SUPABASE_SERVICE_KEY.startswith('eyJ'):
                 return upload_via_rest_api(file, filename)
             else:
-                raise Exception("API REST requer chaves JWT (eyJ...). Use a biblioteca Supabase ou atualize as chaves.")
+                raise Exception("Biblioteca Supabase não disponível e API REST requer chaves JWT (eyJ...). Instale a biblioteca: pip install supabase")
         
         raise Exception("Nenhum método de upload disponível")
     except Exception as e:

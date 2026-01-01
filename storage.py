@@ -189,6 +189,9 @@ def upload_via_rest_api(file, filename):
 
 def upload_via_library(file, filename):
     """Upload usando biblioteca Supabase"""
+    if not SUPABASE_LIB_AVAILABLE:
+        raise Exception("Biblioteca Supabase não está disponível. Verifique se 'supabase' está instalado.")
+    
     # Usar service key para upload (tem permissões administrativas)
     try:
         supabase = get_supabase_client(use_service_key=True) if SUPABASE_SERVICE_KEY else get_supabase_client()
@@ -197,9 +200,16 @@ def upload_via_library(file, filename):
         if SUPABASE_SERVICE_KEY:
             url = SUPABASE_URL.rstrip('/')
             try:
+                # Limpar cache antes de tentar novamente
+                global _supabase_service_client
+                _supabase_service_client = None
                 supabase = create_client(url, SUPABASE_SERVICE_KEY)
             except Exception as e2:
-                raise Exception(f"Erro ao criar cliente Supabase: {str(e2)}. Verifique se SUPABASE_URL e SUPABASE_SERVICE_KEY estão corretos.")
+                error_str = str(e2)
+                # Dar mensagem mais específica para chaves sb_secret_
+                if SUPABASE_SERVICE_KEY.startswith('sb_secret_'):
+                    raise Exception(f"A biblioteca Supabase não conseguiu criar cliente com chave sb_secret_. Isso pode indicar que a biblioteca precisa ser atualizada ou que a chave está incorreta. Tente usar chaves JWT (eyJ...) em vez de sb_secret_. Erro: {error_str}")
+                raise Exception(f"Erro ao criar cliente Supabase: {error_str}. Verifique se SUPABASE_URL e SUPABASE_SERVICE_KEY estão corretos.")
         else:
             raise e
     

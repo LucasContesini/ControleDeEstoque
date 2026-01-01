@@ -149,6 +149,7 @@ async function carregarProdutos() {
         const response = await fetch('/api/produtos');
         produtos = await response.json();
         produtosFiltrados = [...produtos];
+        paginaAtual = 1; // Resetar para primeira página
         ordenarProdutos();
         atualizarEstatisticas(); // Atualizar estatísticas após carregar produtos
     } catch (error) {
@@ -295,10 +296,43 @@ function filtrarProdutos() {
     }, 300);
 }
 
+// Aplicar filtros avançados
+function aplicarFiltrosAvancados() {
+    let produtosFiltrados = [...produtos];
+    
+    // Filtro de estoque baixo
+    if (filtroEstoqueBaixo) {
+        produtosFiltrados = produtosFiltrados.filter(p => (p.quantidade || 0) === 0);
+    }
+    
+    // Filtro por e-commerce
+    if (filtroEcommerce === 'ml') {
+        produtosFiltrados = produtosFiltrados.filter(p => (p.quantidade_mercado_livre || 0) > 0);
+    } else if (filtroEcommerce === 'shopee') {
+        produtosFiltrados = produtosFiltrados.filter(p => (p.quantidade_shopee || 0) > 0);
+    }
+    
+    return produtosFiltrados;
+}
+
 // Ordenar produtos
 function ordenarProdutos() {
     const ordenacao = document.getElementById('ordenacao').value;
     ordenacaoAtual = ordenacao;
+    
+    // Aplicar filtros avançados primeiro
+    let produtosFiltradosComFiltros = aplicarFiltrosAvancados();
+    
+    // Aplicar busca
+    const busca = document.getElementById('busca').value.toLowerCase();
+    if (busca !== '') {
+        produtosFiltradosComFiltros = produtosFiltradosComFiltros.filter(produto => 
+            produto.titulo.toLowerCase().includes(busca) ||
+            (produto.descricao && produto.descricao.toLowerCase().includes(busca))
+        );
+    }
+    
+    produtosFiltrados = produtosFiltradosComFiltros;
     
     const produtosParaOrdenar = [...produtosFiltrados];
     

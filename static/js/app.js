@@ -1152,3 +1152,54 @@ async function importarCSV(event) {
     }
 }
 
+// Configurar drag and drop para upload de imagem
+function configurarDragAndDrop() {
+    const imagemPreview = document.getElementById('imagem-preview');
+    const imagemUpload = document.getElementById('imagem-upload');
+    
+    if (!imagemPreview || !imagemUpload) return;
+    
+    // Prevenir comportamento padrão
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        imagemPreview.addEventListener(eventName, preventDefaults, false);
+        document.body.addEventListener(eventName, preventDefaults, false);
+    });
+    
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    // Destacar área de drop
+    ['dragenter', 'dragover'].forEach(eventName => {
+        imagemPreview.addEventListener(eventName, () => {
+            imagemPreview.classList.add('drag-over');
+        }, false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+        imagemPreview.addEventListener(eventName, () => {
+            imagemPreview.classList.remove('drag-over');
+        }, false);
+    });
+    
+    // Processar arquivo solto
+    imagemPreview.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        
+        if (files.length > 0) {
+            const file = files[0];
+            if (file.type.startsWith('image/')) {
+                // Simular mudança no input file
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                imagemUpload.files = dataTransfer.files;
+                previewImagem({ target: imagemUpload });
+            } else {
+                mostrarToast('Por favor, solte apenas arquivos de imagem', 'erro');
+            }
+        }
+    }, false);
+}
+

@@ -29,7 +29,18 @@ Sistema simples de controle de estoque para produtos vendidos no Mercado Livre e
 pip install -r requirements.txt
 ```
 
-### 2. Iniciar Aplicação
+### 2. Configurar Variáveis de Ambiente (Opcional para desenvolvimento)
+
+Para desenvolvimento local com SQLite, não precisa configurar nada. O sistema detecta automaticamente.
+
+Para usar PostgreSQL/Supabase localmente:
+
+```bash
+cp env.example .env
+# Edite o .env com suas credenciais
+```
+
+### 3. Iniciar Aplicação
 
 **Opção A: Script Automático (Recomendado)**
 ```bash
@@ -41,60 +52,56 @@ pip install -r requirements.txt
 python3 app.py
 ```
 
-### 3. Acessar
+### 4. Acessar
 
 Abra no navegador: **http://localhost:5001**
 
 **Nota:** A porta 5001 é usada porque a porta 5000 padrão está ocupada pelo AirPlay Receiver no macOS.
 
-## Configuração para Produção (Supabase)
+## Deploy no Vercel
 
-### 1. Configurar Banco de Dados
+### ⚠️ Importante: Vercel é IPv4-only!
 
-Edite o arquivo `configurar_supabase.sh` e configure:
+O Vercel não suporta IPv6. Use o **Session Pooler** do Supabase (não a Direct Connection).
 
-```bash
-export DATABASE_TYPE=postgresql
-export DB_HOST=db.xxxxx.supabase.co
-export DB_PORT=5432
-export DB_NAME=postgres
-export DB_USER=postgres
-export DB_PASSWORD=sua_senha
+### Configuração
+
+1. **No Supabase Dashboard:**
+   - Vá em **Settings** → **Database** → **Connection Pooling**
+   - Copie a **Connection String** do **Session Pooler** (não Direct Connection)
+
+2. **No Vercel Dashboard:**
+   - Vá em **Settings** → **Environment Variables**
+   - Adicione as seguintes variáveis:
+
+```
+DATABASE_URL=[Connection String do Session Pooler do Supabase]
+SUPABASE_URL=https://seu-projeto.supabase.co
+SUPABASE_KEY=sua_anon_key
+SUPABASE_SERVICE_KEY=sua_service_key
 ```
 
-**Como obter as credenciais:**
-1. Acesse https://supabase.com
-2. Selecione seu projeto → **Settings** → **Database**
-3. Copie a string de conexão e extraia as informações
+**Ou use variáveis individuais:**
 
-### 2. Configurar Storage (Imagens)
-
-No mesmo arquivo `configurar_supabase.sh`, adicione:
-
-```bash
-export SUPABASE_URL="https://xxxxx.supabase.co"
-export SUPABASE_KEY="sua_anon_key"
-export SUPABASE_SERVICE_KEY="sua_service_key"
+```
+DB_HOST=aws-0-us-west-2.pooler.supabase.com
+DB_PORT=5432
+DB_NAME=postgres
+DB_USER=postgres.PROJECT_REF
+DB_PASSWORD=sua_senha
+SUPABASE_URL=https://seu-projeto.supabase.co
+SUPABASE_KEY=sua_anon_key
+SUPABASE_SERVICE_KEY=sua_service_key
 ```
 
-**Como obter as chaves:**
-1. No Supabase, vá em **Settings** → **API**
-2. Copie a chave **anon public** (para `SUPABASE_KEY`)
-3. Copie a chave **service_role** (para `SUPABASE_SERVICE_KEY`)
+### Variáveis Necessárias
 
-### 3. Criar Bucket no Supabase Storage
-
-1. No Supabase, vá em **Storage**
-2. Clique em **New bucket**
-3. Nome: `Controle de Estoque`
-4. Marque **Public bucket**
-5. Clique em **Create bucket**
-
-### 4. Iniciar
-
-```bash
-./iniciar.sh
-```
+| Variável | Descrição | Onde Obter |
+|---------|-----------|------------|
+| `DATABASE_URL` ou `DB_HOST/DB_PORT/DB_USER/DB_PASSWORD` | Connection string ou credenciais do Session Pooler | Supabase Dashboard → Database → Connection Pooling |
+| `SUPABASE_URL` | URL do projeto Supabase | Supabase Dashboard → Settings → API |
+| `SUPABASE_KEY` | Chave pública (anon key) | Supabase Dashboard → Settings → API |
+| `SUPABASE_SERVICE_KEY` | Chave secreta (service_role) | Supabase Dashboard → Settings → API |
 
 ## Estrutura do Projeto
 
@@ -102,10 +109,10 @@ export SUPABASE_SERVICE_KEY="sua_service_key"
 controle-de-estoque/
 ├── app.py                  # Aplicação Flask principal
 ├── models.py               # Modelo de dados
+├── config.py               # Configurações centralizadas
 ├── db_helper.py            # Helper de banco de dados
 ├── storage.py              # Storage Supabase (API REST)
 ├── storage_s3.py            # Storage Supabase (S3 - fallback)
-├── configurar_supabase.sh  # Script de configuração
 ├── iniciar.sh              # Script de inicialização
 ├── requirements.txt        # Dependências Python
 ├── static/                 # Arquivos estáticos
@@ -145,9 +152,9 @@ pkill -f "python3 app.py"
 ```
 
 ### Erro de conexão com Supabase
-- Verifique se a senha está correta em `configurar_supabase.sh`
-- Verifique se o bucket "Controle de Estoque" existe e está público
-- Verifique os logs do servidor
+- Verifique se está usando **Session Pooler** (não Direct Connection)
+- Verifique se as variáveis de ambiente estão configuradas corretamente
+- Verifique se o bucket "Controle de Estoque" existe e está público no Supabase
 
 ### Dependências faltando
 ```bash
@@ -164,7 +171,7 @@ pip3 install -r requirements.txt
 ### Banco de Dados
 
 O sistema detecta automaticamente qual banco usar:
-- Se `DATABASE_TYPE=postgresql` → usa PostgreSQL/Supabase
+- Se `DATABASE_TYPE=postgresql` ou estiver no Vercel → usa PostgreSQL/Supabase
 - Caso contrário → usa SQLite local
 
 ### Storage

@@ -175,9 +175,20 @@ def upload_via_rest_api(file, filename):
     return public_url
 
 def upload_via_library(file, filename):
-    """Upload usando biblioteca Supabase (fallback)"""
+    """Upload usando biblioteca Supabase"""
     # Usar service key para upload (tem permissões administrativas)
-    supabase = get_supabase_client(use_service_key=True) if SUPABASE_SERVICE_KEY else get_supabase_client()
+    try:
+        supabase = get_supabase_client(use_service_key=True) if SUPABASE_SERVICE_KEY else get_supabase_client()
+    except Exception as e:
+        # Se falhar ao criar cliente, tentar criar diretamente sem cache
+        if SUPABASE_SERVICE_KEY:
+            url = SUPABASE_URL.rstrip('/')
+            try:
+                supabase = create_client(url, SUPABASE_SERVICE_KEY)
+            except Exception as e2:
+                raise Exception(f"Erro ao criar cliente Supabase: {str(e2)}. Verifique se SUPABASE_URL e SUPABASE_SERVICE_KEY estão corretos.")
+        else:
+            raise e
     
     # Ler o arquivo
     file_content = file.read()
@@ -199,13 +210,17 @@ def upload_via_library(file, filename):
             file_content,
             file_options={"content-type": content_type, "upsert": "true"}
         )
-    except Exception:
+    except Exception as upload_error:
         # Se der erro, tentar sem upsert
-        response = supabase.storage.from_(BUCKET_NAME).upload(
-            filename,
-            file_content,
-            file_options={"content-type": content_type}
-        )
+        try:
+            response = supabase.storage.from_(BUCKET_NAME).upload(
+                filename,
+                file_content,
+                file_options={"content-type": content_type}
+            )
+        except Exception:
+            # Se ainda falhar, levantar o erro original
+            raise upload_error
     
     # Obter URL pública
     url = supabase.storage.from_(BUCKET_NAME).get_public_url(filename)

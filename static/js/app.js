@@ -206,7 +206,9 @@ function renderizarProdutos(listaProdutos) {
     const container = document.getElementById('produtos-container');
     
     if (listaProdutos.length === 0) {
-        container.innerHTML = '<div class="vazio">Nenhum produto cadastrado ainda</div>';
+        const busca = document.getElementById('busca').value.toLowerCase();
+        const mensagem = busca ? 'Nenhum produto encontrado' : 'Nenhum produto cadastrado ainda';
+        container.innerHTML = `<div class="vazio">${mensagem}</div>`;
         return;
     }
     

@@ -66,6 +66,7 @@ def init_db():
                 id SERIAL PRIMARY KEY,
                 titulo VARCHAR(255) NOT NULL,
                 descricao TEXT,
+                categoria VARCHAR(100),
                 quantidade_mercado_livre INTEGER NOT NULL DEFAULT 0,
                 quantidade_shopee INTEGER NOT NULL DEFAULT 0,
                 imagem VARCHAR(500),
@@ -89,6 +90,9 @@ def init_db():
         if 'quantidade_shopee' not in colunas_existentes:
             cursor.execute('ALTER TABLE produtos ADD COLUMN quantidade_shopee INTEGER NOT NULL DEFAULT 0')
         
+        if 'categoria' not in colunas_existentes:
+            cursor.execute('ALTER TABLE produtos ADD COLUMN categoria VARCHAR(100)')
+        
         # Migração: remover coluna quantidade se existir (não é mais necessária)
         if 'quantidade' in colunas_existentes:
             try:
@@ -109,6 +113,7 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 titulo TEXT NOT NULL,
                 descricao TEXT,
+                categoria TEXT,
                 quantidade_mercado_livre INTEGER NOT NULL DEFAULT 0,
                 quantidade_shopee INTEGER NOT NULL DEFAULT 0,
                 imagem TEXT,
@@ -131,6 +136,12 @@ def init_db():
         if 'quantidade_shopee' not in colunas:
             try:
                 cursor.execute('ALTER TABLE produtos ADD COLUMN quantidade_shopee INTEGER NOT NULL DEFAULT 0')
+            except sqlite3.OperationalError:
+                pass
+        
+        if 'categoria' not in colunas:
+            try:
+                cursor.execute('ALTER TABLE produtos ADD COLUMN categoria TEXT')
             except sqlite3.OperationalError:
                 pass
         
@@ -255,6 +266,7 @@ def produto_para_dict(produto):
             'id': produto['id'],
             'titulo': produto['titulo'],
             'descricao': produto['descricao'],
+            'categoria': produto.get('categoria', ''),
             'quantidade': quantidade_total,  # Calculado dinamicamente
             'quantidade_mercado_livre': quantidade_ml,
             'quantidade_shopee': quantidade_shopee,
@@ -290,6 +302,7 @@ def produto_para_dict(produto):
             'id': produto['id'],
             'titulo': produto['titulo'],
             'descricao': produto['descricao'],
+            'categoria': produto.get('categoria', '') if len(produto) > 8 else '',
             'quantidade': quantidade_total,  # Calculado dinamicamente
             'quantidade_mercado_livre': quantidade_ml,
             'quantidade_shopee': quantidade_shopee,

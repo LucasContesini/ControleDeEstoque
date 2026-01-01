@@ -38,6 +38,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Configurar campos de quantidade quando a página carregar
     setTimeout(() => configurarCamposQuantidade(), 100);
     
+    // Configurar drag and drop
+    configurarDragAndDrop();
+    
+    // Garantir que o campo de busca está configurado
+    const buscaInput = document.getElementById('busca');
+    if (buscaInput) {
+        buscaInput.addEventListener('input', filtrarProdutos);
+        buscaInput.addEventListener('keyup', filtrarProdutos);
+    }
+    
     const produtosContainer = document.getElementById('produtos-container');
     
     // Função para verificar se está no topo da página
@@ -145,10 +155,55 @@ async function carregarProdutos() {
         produtos = await response.json();
         produtosFiltrados = [...produtos];
         paginaAtual = 1; // Resetar para primeira página
+        atualizarCategorias(); // Atualizar lista de categorias
         ordenarProdutos();
         atualizarEstatisticas(); // Atualizar estatísticas após carregar produtos
+        
+        // Esconder loading inicial após carregar
+        const loadingInicial = document.getElementById('loading-inicial');
+        if (loadingInicial) {
+            loadingInicial.style.display = 'none';
+        }
     } catch (error) {
         mostrarMensagem('Erro ao carregar produtos: ' + error.message, 'erro');
+        // Esconder loading mesmo em caso de erro
+        const loadingInicial = document.getElementById('loading-inicial');
+        if (loadingInicial) {
+            loadingInicial.style.display = 'none';
+        }
+    }
+}
+
+// Atualizar lista de categorias
+function atualizarCategorias() {
+    const categorias = new Set();
+    produtos.forEach(produto => {
+        if (produto.categoria && produto.categoria.trim()) {
+            categorias.add(produto.categoria.trim());
+        }
+    });
+    
+    const filtroCategoria = document.getElementById('filtro-categoria');
+    const datalistCategorias = document.getElementById('categorias-lista');
+    
+    if (filtroCategoria) {
+        // Limpar opções existentes (exceto "Todas")
+        filtroCategoria.innerHTML = '<option value="">📂 Todas as categorias</option>';
+        categorias.forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat;
+            option.textContent = cat;
+            filtroCategoria.appendChild(option);
+        });
+    }
+    
+    if (datalistCategorias) {
+        datalistCategorias.innerHTML = '';
+        categorias.forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat;
+            datalistCategorias.appendChild(option);
+        });
     }
 }
 
@@ -230,17 +285,18 @@ function renderizarProdutos(listaProdutos) {
         // Verificar se estoque está baixo (quantidade = 0)
         const estoqueBaixo = (produto.quantidade || 0) === 0;
         const faixaEstoqueBaixo = estoqueBaixo ? '<div class="faixa-estoque-baixo">ESTOQUE BAIXO</div>' : '';
+        const categoriaBadge = produto.categoria ? `<span class="produto-categoria">${produto.categoria}</span>` : '';
         
         return `
         <div class="produto-card ${estoqueBaixo ? 'estoque-baixo' : ''}">
             ${faixaEstoqueBaixo}
-            <img data-src="${imagemFinal}" 
-                 src="${IMAGEM_PLACEHOLDER}" 
+            <img src="${imagemFinal}" 
                  alt="${produto.titulo}" 
-                 class="produto-imagem lazy-load"
-                 loading="lazy"
+                 class="produto-imagem"
+                 ${produto.imagem ? 'loading="lazy"' : ''}
                  onerror="this.onerror=null; this.src='${IMAGEM_PLACEHOLDER}';">
             <h3 class="produto-titulo">${produto.titulo}</h3>
+            ${categoriaBadge}
             <p class="produto-descricao">${produto.descricao || 'Sem descrição'}</p>
             <div class="produto-quantidades">
                 <span class="produto-quantidade">Total: ${produto.quantidade}</span>
@@ -291,19 +347,45 @@ function filtrarProdutos() {
     
     // Aguardar 300ms antes de filtrar
     buscaTimeout = setTimeout(() => {
-        const busca = document.getElementById('busca').value.toLowerCase();
-        if (busca === '') {
-            produtosFiltrados = [...produtos];
-        } else {
-            produtosFiltrados = produtos.filter(produto => {
-                // Buscar no título
-                if (produto.titulo.toLowerCase().includes(busca)) return true;
-                
-                // Buscar na descrição
-                if (produto.descricao && produto.descricao.toLowerCase().includes(busca)) return true;
-                
-                // Buscar nas especificações
-                if (produto.especificacoes) {
+        const buscaInput = document.getElementById('busca');
+        if (!buscaInput) {
+            console.error('Campo de busca não encontrado');
+            return;
+        }
+        
+        const busca = buscaInput.value.toLowerCase().trim();
+        const categoriaFiltro = document.getElementById('filtro-categoria')?.value || '';
+        
+        // Verificar se produtos está carregado
+        if (!produtos || produtos.length === 0) {
+            console.warn('Produtos ainda não foram carregados');
+            return;
+        }
+        
+        // Aplicar filtros
+        produtosFiltrados = produtos.filter(produto => {
+            // Filtro por categoria
+            if (categoriaFiltro && produto.categoria !== categoriaFiltro) {
+                return false;
+            }
+            
+            // Se não há busca, retornar true (já passou pelo filtro de categoria)
+            if (busca === '') {
+                return true;
+            }
+            
+            // Buscar no título
+            if (produto.titulo && produto.titulo.toLowerCase().includes(busca)) return true;
+            
+            // Buscar na descrição
+            if (produto.descricao && produto.descricao.toLowerCase().includes(busca)) return true;
+            
+            // Buscar na categoria
+            if (produto.categoria && produto.categoria.toLowerCase().includes(busca)) return true;
+            
+            // Buscar nas especificações
+            if (produto.especificacoes) {
+                try {
                     const especificacoes = typeof produto.especificacoes === 'string' 
                         ? JSON.parse(produto.especificacoes) 
                         : produto.especificacoes;
@@ -316,11 +398,13 @@ function filtrarProdutos() {
                             }
                         }
                     }
+                } catch (e) {
+                    console.warn('Erro ao processar especificações:', e);
                 }
-                
-                return false;
-            });
-        }
+            }
+            
+            return false;
+        });
         ordenarProdutos();
     }, 300);
 }
@@ -360,9 +444,6 @@ function ordenarProdutos() {
     }
     
     renderizarProdutos(produtosParaOrdenar);
-    
-    // Carregar imagens lazy após renderizar
-    setTimeout(() => carregarImagensLazy(), 100);
 }
 
 // Carregar imagens lazy quando visíveis
@@ -514,6 +595,7 @@ async function editarProduto(id) {
         document.getElementById('produto-id').value = produto.id;
         document.getElementById('titulo').value = produto.titulo;
         document.getElementById('descricao').value = produto.descricao || '';
+        document.getElementById('categoria').value = produto.categoria || '';
         document.getElementById('quantidade_ml').value = produto.quantidade_mercado_livre || 0;
         document.getElementById('quantidade_shopee').value = produto.quantidade_shopee || 0;
         document.getElementById('imagem').value = produto.imagem || '';
@@ -753,6 +835,7 @@ async function salvarProduto(event) {
     const id = document.getElementById('produto-id').value;
     const titulo = document.getElementById('titulo').value.trim();
     const descricao = document.getElementById('descricao').value.trim();
+    const categoria = document.getElementById('categoria').value.trim();
     
     // Validar quantidades (não permitir negativas)
     let quantidade_ml = parseInt(document.getElementById('quantidade_ml').value) || 0;
@@ -786,6 +869,7 @@ async function salvarProduto(event) {
     const produto = {
         titulo,
         descricao,
+        categoria,
         quantidade,
         quantidade_mercado_livre: quantidade_ml,
         quantidade_shopee: quantidade_shopee,
@@ -1006,6 +1090,54 @@ async function exportarCSV() {
         mostrarToast('CSV exportado com sucesso!', 'sucesso');
     } catch (error) {
         mostrarToast('Erro ao exportar CSV: ' + error.message, 'erro');
+    }
+}
+
+// Importar produtos de CSV
+async function importarCSV(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    if (!file.name.endsWith('.csv')) {
+        mostrarToast('Por favor, selecione um arquivo CSV', 'erro');
+        event.target.value = '';
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('arquivo', file);
+    
+    const loadingOverlay = document.getElementById('loading-overlay');
+    if (loadingOverlay) {
+        loadingOverlay.style.display = 'flex';
+        loadingOverlay.querySelector('p').textContent = 'Importando produtos...';
+    }
+    
+    try {
+        const response = await fetch('/api/produtos/importar-csv', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            mostrarToast(`✅ ${data.mensagem || 'Produtos importados com sucesso!'}`, 'sucesso');
+            await carregarProdutos();
+            // Restaurar ordenação após recarregar
+            document.getElementById('ordenacao').value = ordenacaoAtual;
+            ordenarProdutos();
+        } else {
+            mostrarToast(data.erro || 'Erro ao importar CSV', 'erro');
+        }
+    } catch (error) {
+        mostrarToast('Erro ao importar CSV: ' + error.message, 'erro');
+    } finally {
+        // Limpar input
+        event.target.value = '';
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+        }
     }
 }
 

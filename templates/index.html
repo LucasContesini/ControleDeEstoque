@@ -3,8 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#667eea">
+    <meta name="description" content="Sistema de controle de estoque para produtos vendidos no Mercado Livre e Shopee">
     <title>Controle de Estoque</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
 </head>
 <body>
     <div class="container">
@@ -45,7 +49,11 @@
 
         <div class="filtros">
             <div class="filtros-linha">
-                <input type="text" id="busca" placeholder="🔍 Buscar produtos..." onkeyup="filtrarProdutos()">
+                <input type="text" id="busca" placeholder="🔍 Buscar produtos..." onkeyup="filtrarProdutos()" oninput="filtrarProdutos()">
+                <select id="filtro-categoria" onchange="filtrarProdutos()" class="select-ordenacao">
+                    <option value="">📂 Todas as categorias</option>
+                    <!-- Categorias serão preenchidas dinamicamente -->
+                </select>
                 <select id="ordenacao" onchange="ordenarProdutos()" class="select-ordenacao">
                     <option value="recente">📅 Último modificado</option>
                     <option value="nome">🔤 Nome (A-Z)</option>
@@ -56,6 +64,10 @@
                 <button class="btn btn-secondary" onclick="exportarCSV()" title="Exportar produtos para CSV">
                     📥 Exportar CSV
                 </button>
+                <button class="btn btn-secondary" onclick="document.getElementById('importar-csv-input').click()" title="Importar produtos de CSV">
+                    📤 Importar CSV
+                </button>
+                <input type="file" id="importar-csv-input" accept=".csv" style="display: none;" onchange="importarCSV(event)">
             </div>
         </div>
 
@@ -70,6 +82,12 @@
     <div id="loading-overlay" class="loading-overlay" style="display: none;">
         <div class="loading-spinner"></div>
         <p>Atualizando...</p>
+    </div>
+
+    <!-- Loading Inicial -->
+    <div id="loading-inicial" class="loading-overlay" style="display: flex;">
+        <div class="loading-spinner"></div>
+        <p>Carregando produtos...</p>
     </div>
 
     <!-- Modal Criar/Editar Produto -->
@@ -90,6 +108,14 @@
                 <div class="form-group">
                     <label for="descricao">Descrição</label>
                     <textarea id="descricao" rows="4"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="categoria">Categoria</label>
+                    <input type="text" id="categoria" list="categorias-lista" placeholder="Ex: Eletrônicos, Roupas, Casa...">
+                    <datalist id="categorias-lista">
+                        <!-- Categorias serão preenchidas dinamicamente -->
+                    </datalist>
                 </div>
 
                 <div class="form-group">
@@ -118,7 +144,9 @@
                 <div class="form-group">
                     <label for="imagem-upload">Imagem</label>
                     <input type="file" id="imagem-upload" accept="image/*" onchange="previewImagem(event)">
-                    <div id="imagem-preview" class="imagem-preview"></div>
+                    <div id="imagem-preview" class="imagem-preview">
+                        <p style="color: #999; text-align: center; padding: 20px;">Arraste uma imagem aqui ou clique para selecionar</p>
+                    </div>
                     <input type="hidden" id="imagem">
                 </div>
 
@@ -139,6 +167,20 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script>
+        // Registrar Service Worker para PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((registration) => {
+                        console.log('Service Worker registrado:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.log('Erro ao registrar Service Worker:', error);
+                    });
+            });
+        }
+    </script>
 </body>
 </html>
 

@@ -156,6 +156,7 @@ def criar_produto():
             return jsonify({'erro': 'Título é obrigatório'}), 400
         
         descricao = data.get('descricao', '').strip()
+        categoria = data.get('categoria', '').strip()
         
         # Validar quantidades (não permitir negativas)
         quantidade_ml = int(data.get('quantidade_mercado_livre', 0))
@@ -187,19 +188,19 @@ def criar_produto():
             conn = get_db()
             cursor = get_cursor(conn)
             cursor.execute('''
-                INSERT INTO produtos (titulo, descricao, quantidade_mercado_livre, quantidade_shopee, imagem, especificacoes, data_criacao, data_atualizacao)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO produtos (titulo, descricao, categoria, quantidade_mercado_livre, quantidade_shopee, imagem, especificacoes, data_criacao, data_atualizacao)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            ''', (titulo, descricao, quantidade_ml, quantidade_shopee, imagem, especificacoes, data_atual, data_atual))
+            ''', (titulo, descricao, categoria, quantidade_ml, quantidade_shopee, imagem, especificacoes, data_atual, data_atual))
             produto_id = cursor.fetchone()['id']
         else:
             data_atual = datetime.now().isoformat()
             conn = get_db()
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO produtos (titulo, descricao, quantidade_mercado_livre, quantidade_shopee, imagem, especificacoes, data_criacao, data_atualizacao)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (titulo, descricao, quantidade_ml, quantidade_shopee, imagem, especificacoes, data_atual, data_atual))
+                INSERT INTO produtos (titulo, descricao, categoria, quantidade_mercado_livre, quantidade_shopee, imagem, especificacoes, data_criacao, data_atualizacao)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (titulo, descricao, categoria, quantidade_ml, quantidade_shopee, imagem, especificacoes, data_atual, data_atual))
             produto_id = cursor.lastrowid
         
         conn.commit()
@@ -380,6 +381,7 @@ def atualizar_produto(produto_id):
             return jsonify({'erro': 'Título é obrigatório'}), 400
         
         descricao = data.get('descricao', produto['descricao'])
+        categoria = data.get('categoria', produto.get('categoria', ''))
         
         # Obter quantidades por e-commerce (com fallback seguro)
         try:
@@ -473,16 +475,16 @@ def atualizar_produto(produto_id):
             data_atual = dt.now()
             cursor.execute('''
                 UPDATE produtos 
-                SET titulo = %s, descricao = %s, quantidade_mercado_livre = %s, quantidade_shopee = %s, imagem = %s, especificacoes = %s, data_atualizacao = %s
+                SET titulo = %s, descricao = %s, categoria = %s, quantidade_mercado_livre = %s, quantidade_shopee = %s, imagem = %s, especificacoes = %s, data_atualizacao = %s
                 WHERE id = %s
-            ''', (titulo, descricao, quantidade_ml, quantidade_shopee, imagem, especificacoes, data_atual, produto_id))
+            ''', (titulo, descricao, categoria, quantidade_ml, quantidade_shopee, imagem, especificacoes, data_atual, produto_id))
         else:
             data_atual = datetime.now().isoformat()
             cursor.execute('''
                 UPDATE produtos 
-                SET titulo = ?, descricao = ?, quantidade_mercado_livre = ?, quantidade_shopee = ?, imagem = ?, especificacoes = ?, data_atualizacao = ?
+                SET titulo = ?, descricao = ?, categoria = ?, quantidade_mercado_livre = ?, quantidade_shopee = ?, imagem = ?, especificacoes = ?, data_atualizacao = ?
                 WHERE id = ?
-            ''', (titulo, descricao, quantidade_ml, quantidade_shopee, imagem, especificacoes, data_atual, produto_id))
+            ''', (titulo, descricao, categoria, quantidade_ml, quantidade_shopee, imagem, especificacoes, data_atual, produto_id))
         
         conn.commit()
         cursor.close()
@@ -715,6 +717,153 @@ def exportar_csv():
         
     except Exception as e:
         return jsonify({'erro': f'Erro ao exportar CSV: {str(e)}'}), 500
+
+@app.route('/api/produtos/importar-csv', methods=['POST'])
+def importar_csv():
+    """Importa produtos de um arquivo CSV"""
+    ensure_db_initialized()
+    try:
+        if 'arquivo' not in request.files:
+            return jsonify({'erro': 'Nenhum arquivo enviado'}), 400
+        
+        file = request.files['arquivo']
+        if file.filename == '':
+            return jsonify({'erro': 'Nenhum arquivo selecionado'}), 400
+        
+        if not file.filename.endswith('.csv'):
+            return jsonify({'erro': 'Arquivo deve ser CSV'}), 400
+        
+        # Ler arquivo CSV
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_reader = csv.DictReader(stream)
+        
+        produtos_importados = 0
+        produtos_atualizados = 0
+        erros = []
+        
+        conn = get_db()
+        cursor = get_cursor(conn)
+        placeholder = get_placeholder()
+        
+        for linha, row in enumerate(csv_reader, start=2):  # Começa em 2 porque linha 1 é cabeçalho
+            try:
+                # Validar campos obrigatórios
+                titulo = row.get('Título', '').strip()
+                if not titulo:
+                    erros.append(f'Linha {linha}: Título é obrigatório')
+                    continue
+                
+                # Ler dados do CSV
+                descricao = row.get('Descrição', '').strip()
+                quantidade_ml = int(row.get('Quantidade Mercado Livre', 0) or 0)
+                quantidade_shopee = int(row.get('Quantidade Shopee', 0) or 0)
+                imagem = row.get('Imagem', '').strip()
+                
+                # Processar especificações
+                especificacoes_str = row.get('Especificações', '').strip()
+                if especificacoes_str:
+                    # Tentar converter de string para dict
+                    try:
+                        especificacoes = json.loads(especificacoes_str)
+                    except:
+                        # Se não for JSON, criar dict simples
+                        especificacoes = {}
+                        for item in especificacoes_str.split(','):
+                            if ':' in item:
+                                k, v = item.split(':', 1)
+                                especificacoes[k.strip()] = v.strip()
+                else:
+                    especificacoes = {}
+                
+                especificacoes_json = json.dumps(especificacoes, ensure_ascii=False)
+                
+                # Verificar se produto já existe (por título)
+                cursor.execute(f'SELECT id FROM produtos WHERE titulo = {placeholder}', (titulo,))
+                produto_existente = cursor.fetchone()
+                
+                if DATABASE_TYPE == 'postgresql':
+                    from datetime import datetime as dt
+                    data_atual = dt.now()
+                    
+                    if produto_existente:
+                        # Atualizar produto existente
+                        produto_id = produto_existente['id'] if isinstance(produto_existente, dict) else produto_existente[0]
+                        cursor.execute(f'''
+                            UPDATE produtos 
+                            SET descricao = {placeholder}, 
+                                quantidade_mercado_livre = {placeholder},
+                                quantidade_shopee = {placeholder},
+                                imagem = {placeholder},
+                                especificacoes = {placeholder},
+                                data_atualizacao = {placeholder}
+                            WHERE id = {placeholder}
+                        ''', (descricao, quantidade_ml, quantidade_shopee, imagem, especificacoes_json, data_atual, produto_id))
+                        produtos_atualizados += 1
+                    else:
+                        # Criar novo produto
+                        cursor.execute('''
+                            INSERT INTO produtos (titulo, descricao, quantidade_mercado_livre, quantidade_shopee, imagem, especificacoes, data_criacao, data_atualizacao)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        ''', (titulo, descricao, quantidade_ml, quantidade_shopee, imagem, especificacoes_json, data_atual, data_atual))
+                        produtos_importados += 1
+                else:
+                    data_atual = datetime.now().isoformat()
+                    
+                    if produto_existente:
+                        # Atualizar produto existente
+                        produto_id = produto_existente[0]
+                        cursor.execute('''
+                            UPDATE produtos 
+                            SET descricao = ?, 
+                                quantidade_mercado_livre = ?,
+                                quantidade_shopee = ?,
+                                imagem = ?,
+                                especificacoes = ?,
+                                data_atualizacao = ?
+                            WHERE id = ?
+                        ''', (descricao, quantidade_ml, quantidade_shopee, imagem, especificacoes_json, data_atual, produto_id))
+                        produtos_atualizados += 1
+                    else:
+                        # Criar novo produto
+                        cursor.execute('''
+                            INSERT INTO produtos (titulo, descricao, quantidade_mercado_livre, quantidade_shopee, imagem, especificacoes, data_criacao, data_atualizacao)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (titulo, descricao, quantidade_ml, quantidade_shopee, imagem, especificacoes_json, data_atual, data_atual))
+                        produtos_importados += 1
+                        
+            except Exception as e:
+                erros.append(f'Linha {linha}: {str(e)}')
+                continue
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        mensagem = f'{produtos_importados} produto(s) importado(s)'
+        if produtos_atualizados > 0:
+            mensagem += f', {produtos_atualizados} produto(s) atualizado(s)'
+        if erros:
+            mensagem += f'. {len(erros)} erro(s) encontrado(s)'
+        
+        return jsonify({
+            'mensagem': mensagem,
+            'importados': produtos_importados,
+            'atualizados': produtos_atualizados,
+            'erros': erros[:10]  # Limitar a 10 erros
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'erro': f'Erro ao importar CSV: {str(e)}'}), 500
+
+@app.route('/manifest.json')
+def manifest():
+    """Serve o manifest.json para PWA"""
+    return send_from_directory('static', 'manifest.json', mimetype='application/manifest+json')
+
+@app.route('/sw.js')
+def service_worker():
+    """Serve o service worker"""
+    return send_from_directory('static', 'sw.js', mimetype='application/javascript')
 
 # Handlers de erro já registrados acima (antes das rotas)
 

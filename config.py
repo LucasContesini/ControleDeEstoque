@@ -38,8 +38,11 @@ SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY', '')  # Chave service_ro
 # Detectar se está no Vercel
 IS_VERCEL = os.getenv('VERCEL', '') != '' or os.getenv('VERCEL_ENV', '') != ''
 
-# Tipo de banco: 'postgresql' em produção (Vercel), 'sqlite' em desenvolvimento
-DATABASE_TYPE = 'postgresql' if IS_VERCEL or os.getenv('DATABASE_TYPE', '').lower() == 'postgresql' else 'sqlite'
+# Tipo de banco: 'postgresql' se tiver DATABASE_URL ou variáveis DB_ configuradas, senão 'sqlite'
+# Força PostgreSQL se tiver DATABASE_URL ou todas as variáveis DB_ configuradas
+tem_database_url = bool(os.getenv('DATABASE_URL', ''))
+tem_db_config = bool(os.getenv('DB_HOST', '') and os.getenv('DB_PASSWORD', ''))
+DATABASE_TYPE = 'postgresql' if (IS_VERCEL or tem_database_url or tem_db_config or os.getenv('DATABASE_TYPE', '').lower() == 'postgresql') else 'sqlite'
 
 # ============================================================================
 # VALIDAÇÃO

@@ -119,10 +119,21 @@ def handle_exception(e):
     import traceback
     traceback.print_exc()
     # Se for uma rota de API, retornar JSON
-    if request.path.startswith('/api/'):
-        return jsonify({'erro': str(e)}), 500
+    if hasattr(request, 'path') and request.path.startswith('/api/'):
+        error_msg = str(e)
+        return jsonify({'erro': f'Erro no servidor: {error_msg}'}), 500
     # Caso contrário, deixar o Flask tratar normalmente
     raise
+
+# Adicionar handler para erros do Werkzeug (erros HTTP)
+from werkzeug.exceptions import HTTPException
+
+@app.errorhandler(HTTPException)
+def handle_http_exception(e):
+    """Garante que erros HTTP retornem JSON para rotas de API"""
+    if hasattr(request, 'path') and request.path.startswith('/api/'):
+        return jsonify({'erro': e.description or str(e)}), e.code
+    return e
 
 @app.route('/')
 def index():
@@ -134,15 +145,21 @@ def index():
 @app.route('/api/produtos', methods=['GET'])
 def listar_produtos():
     """Lista todos os produtos"""
-    ensure_db_initialized()
-    conn = get_db()
-    cursor = get_cursor(conn)
-    cursor.execute('SELECT * FROM produtos ORDER BY data_atualizacao DESC')
-    produtos = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    
-    return jsonify([produto_para_dict(p) for p in produtos])
+    try:
+        ensure_db_initialized()
+        conn = get_db()
+        cursor = get_cursor(conn)
+        cursor.execute('SELECT * FROM produtos ORDER BY data_atualizacao DESC')
+        produtos = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        return jsonify([produto_para_dict(p) for p in produtos])
+    except Exception as e:
+        import traceback
+        error_msg = str(e)
+        traceback.print_exc()
+        return jsonify({'erro': f'Erro ao carregar produtos: {error_msg}'}), 500
 
 @app.route('/api/produtos', methods=['POST'])
 def criar_produto():

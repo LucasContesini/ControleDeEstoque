@@ -12,6 +12,11 @@ if DATABASE_TYPE == 'postgresql':
     # Verificar se há DATABASE_URL (connection string completa)
     DATABASE_URL = os.getenv('DATABASE_URL', '')
     
+    # Verificar se deve usar connection pooling (porta 6543)
+    # Connection pooling é mais confiável em ambientes serverless como Vercel
+    USE_POOLING = os.getenv('USE_CONNECTION_POOLING', 'false').lower() == 'true'
+    POOLING_PORT = '6543'
+    
     if DATABASE_URL:
         # URL externa/pública (Supabase) - garantir SSL
         # Se não tiver sslmode na URL, adicionar
@@ -20,11 +25,23 @@ if DATABASE_TYPE == 'postgresql':
             DATABASE_CONFIG = f"{DATABASE_URL}{separator}sslmode=require"
         else:
             DATABASE_CONFIG = DATABASE_URL
+        
+        # Se usar pooling e a URL não especificar porta, usar porta 6543
+        if USE_POOLING and ':6543' not in DATABASE_CONFIG and ':5432' not in DATABASE_CONFIG:
+            # Substituir porta padrão por 6543
+            if '@' in DATABASE_CONFIG and '/' in DATABASE_CONFIG:
+                parts = DATABASE_CONFIG.split('@')
+                if len(parts) == 2:
+                    host_part = parts[1].split('/')[0]
+                    if ':' not in host_part:
+                        # Adicionar porta de pooling
+                        DATABASE_CONFIG = DATABASE_CONFIG.replace(f"@{host_part}", f"@{host_part}:{POOLING_PORT}")
     else:
         # Configurações do PostgreSQL via variáveis de ambiente individuais
+        db_port = os.getenv('DB_PORT', POOLING_PORT if USE_POOLING else '5432')
         DATABASE_CONFIG = {
             'host': os.getenv('DB_HOST', 'localhost'),
-            'port': os.getenv('DB_PORT', '5432'),
+            'port': db_port,
             'database': os.getenv('DB_NAME', 'controle_estoque'),
             'user': os.getenv('DB_USER', 'postgres'),
             'password': os.getenv('DB_PASSWORD', ''),
@@ -166,13 +183,28 @@ def get_db():
             # Melhorar mensagem de erro com informações úteis
             error_msg = str(e)
             if 'Cannot assign requested address' in error_msg or 'Network is unreachable' in error_msg:
+                # Tentar connection pooling como fallback se não estiver usando
+                USE_POOLING = os.getenv('USE_CONNECTION_POOLING', 'false').lower() == 'true'
+                if not USE_POOLING:
+                    suggestion = (
+                        f"\n\n💡 Dica: Tente usar Connection Pooling do Supabase (porta 6543). "
+                        f"Adicione no Vercel:\n"
+                        f"USE_CONNECTION_POOLING=true\n"
+                        f"DB_PORT=6543\n\n"
+                        f"Ou use DATABASE_URL com porta 6543:\n"
+                        f"DATABASE_URL=postgresql://postgres:[PASSWORD]@db.xxxxx.supabase.co:6543/postgres?sslmode=require"
+                    )
+                else:
+                    suggestion = ""
+                
                 raise Exception(
                     f"Erro de conexão de rede com o banco de dados. "
                     f"Verifique:\n"
                     f"1. Se o Supabase permite conexões externas (Settings → Database → Network Restrictions)\n"
                     f"2. Se as variáveis de ambiente estão configuradas corretamente no Vercel\n"
                     f"3. Se o host/porta estão corretos\n"
-                    f"Erro original: {error_msg}"
+                    f"4. Tente usar Connection Pooling (porta 6543) em vez de conexão direta (porta 5432)\n"
+                    f"Erro original: {error_msg}{suggestion}"
                 )
             raise Exception(f"Erro ao conectar ao banco de dados: {error_msg}")
     else:

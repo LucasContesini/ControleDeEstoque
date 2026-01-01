@@ -145,9 +145,21 @@ async function carregarProdutos() {
         produtos = await response.json();
         produtosFiltrados = [...produtos];
         ordenarProdutos();
+        atualizarEstatisticas(); // Atualizar estatísticas após carregar produtos
     } catch (error) {
         mostrarMensagem('Erro ao carregar produtos: ' + error.message, 'erro');
     }
+}
+
+// Atualizar estatísticas
+function atualizarEstatisticas() {
+    const totalProdutos = produtos.length;
+    const totalEstoque = produtos.reduce((sum, p) => sum + (p.quantidade || 0), 0);
+    const estoqueBaixo = produtos.filter(p => (p.quantidade || 0) === 0).length;
+    
+    document.getElementById('total-produtos').textContent = totalProdutos;
+    document.getElementById('total-estoque').textContent = totalEstoque;
+    document.getElementById('estoque-baixo').textContent = estoqueBaixo;
 }
 
 // Atualizar produtos (com loading overlay)
@@ -172,6 +184,7 @@ async function atualizarProdutos(silencioso = false) {
         document.getElementById('ordenacao').value = ordenacaoAtual;
         ordenarProdutos();
         
+        atualizarEstatisticas(); // Atualizar estatísticas após atualizar produtos
         if (!silencioso) {
             mostrarMensagem('Produtos atualizados!', 'sucesso');
         }
@@ -819,4 +832,34 @@ document.addEventListener('keydown', function(event) {
         }
     }
 });
+
+// Exportar produtos para CSV
+async function exportarCSV() {
+    try {
+        const response = await fetch('/api/produtos/exportar-csv');
+        
+        if (!response.ok) {
+            const error = await response.json();
+            mostrarToast(error.erro || 'Erro ao exportar CSV', 'erro');
+            return;
+        }
+        
+        // Obter o blob do CSV
+        const blob = await response.blob();
+        
+        // Criar link de download
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `controle-estoque-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        mostrarToast('CSV exportado com sucesso!', 'sucesso');
+    } catch (error) {
+        mostrarToast('Erro ao exportar CSV: ' + error.message, 'erro');
+    }
+}
 

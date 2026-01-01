@@ -18,6 +18,31 @@
             </div>
         </header>
 
+        <!-- Estatísticas -->
+        <div id="estatisticas" class="estatisticas-container">
+            <div class="estatistica-card">
+                <div class="estatistica-icon">📦</div>
+                <div class="estatistica-info">
+                    <div class="estatistica-valor" id="total-produtos">0</div>
+                    <div class="estatistica-label">Total de Produtos</div>
+                </div>
+            </div>
+            <div class="estatistica-card">
+                <div class="estatistica-icon">📊</div>
+                <div class="estatistica-info">
+                    <div class="estatistica-valor" id="total-estoque">0</div>
+                    <div class="estatistica-label">Total em Estoque</div>
+                </div>
+            </div>
+            <div class="estatistica-card">
+                <div class="estatistica-icon">⚠️</div>
+                <div class="estatistica-info">
+                    <div class="estatistica-valor" id="estoque-baixo">0</div>
+                    <div class="estatistica-label">Estoque Baixo</div>
+                </div>
+            </div>
+        </div>
+
         <div class="filtros">
             <div class="filtros-linha">
                 <input type="text" id="busca" placeholder="🔍 Buscar produtos..." onkeyup="filtrarProdutos()">
@@ -28,6 +53,9 @@
                     <option value="quantidade">📈 Quantidade (maior)</option>
                     <option value="quantidade-asc">📉 Quantidade (menor)</option>
                 </select>
+                <button class="btn btn-secondary" onclick="exportarCSV()" title="Exportar produtos para CSV">
+                    📥 Exportar CSV
+                </button>
             </div>
         </div>
 

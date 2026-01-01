@@ -1,8 +1,10 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, Response
 from werkzeug.utils import secure_filename
 import os
 import json
 import requests
+import csv
+import io
 from datetime import datetime
 from models import init_db, get_db, produto_para_dict, DATABASE_TYPE
 from db_helper import get_placeholder, get_cursor
@@ -611,6 +613,77 @@ def uploaded_file(filename):
         from flask import redirect
         return redirect(filename)
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+@app.route('/api/produtos/exportar-csv', methods=['GET'])
+def exportar_csv():
+    """Exporta todos os produtos para CSV"""
+    ensure_db_initialized()
+    try:
+        conn = get_db()
+        cursor = get_cursor(conn)
+        cursor.execute('SELECT * FROM produtos ORDER BY data_atualizacao DESC')
+        produtos = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        # Criar CSV em memória
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Cabeçalho
+        writer.writerow([
+            'ID',
+            'Título',
+            'Descrição',
+            'Quantidade Total',
+            'Quantidade Mercado Livre',
+            'Quantidade Shopee',
+            'Imagem',
+            'Especificações',
+            'Data Criação',
+            'Data Atualização'
+        ])
+        
+        # Dados
+        for produto in produtos:
+            produto_dict = produto_para_dict(produto)
+            # Converter especificações de JSON para string legível
+            especificacoes = produto_dict.get('especificacoes', {})
+            if isinstance(especificacoes, str):
+                try:
+                    especificacoes = json.loads(especificacoes)
+                except:
+                    especificacoes = {}
+            
+            especificacoes_str = ', '.join([f"{k}: {v}" for k, v in especificacoes.items()]) if especificacoes else ''
+            
+            writer.writerow([
+                produto_dict.get('id', ''),
+                produto_dict.get('titulo', ''),
+                produto_dict.get('descricao', ''),
+                produto_dict.get('quantidade', 0),
+                produto_dict.get('quantidade_mercado_livre', 0),
+                produto_dict.get('quantidade_shopee', 0),
+                produto_dict.get('imagem', ''),
+                especificacoes_str,
+                produto_dict.get('data_criacao', ''),
+                produto_dict.get('data_atualizacao', '')
+            ])
+        
+        # Criar resposta com CSV
+        output.seek(0)
+        response = Response(
+            output.getvalue(),
+            mimetype='text/csv',
+            headers={
+                'Content-Disposition': f'attachment; filename=controle-estoque-{datetime.now().strftime("%Y%m%d")}.csv'
+            }
+        )
+        
+        return response
+        
+    except Exception as e:
+        return jsonify({'erro': f'Erro ao exportar CSV: {str(e)}'}), 500
 
 # Handlers de erro já registrados acima (antes das rotas)
 

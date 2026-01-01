@@ -4,13 +4,26 @@
 
 A maioria das configurações está hardcoded no arquivo `config.py`. Você só precisa configurar as **credenciais sensíveis**.
 
+O sistema usa a **API REST do Supabase** por padrão (mais simples). As variáveis S3 são **opcionais** e só necessárias se a API REST não funcionar.
+
 ## 📋 Variáveis Obrigatórias (Apenas 3!)
 
 | Variável | Descrição | Onde Obter | Obrigatória |
 |---------|-----------|------------|-------------|
 | `DB_PASSWORD` | Senha do banco de dados PostgreSQL | Supabase Dashboard → Settings → Database → Database password | ✅ Sim |
-| `SUPABASE_KEY` | Chave pública (anon key) | Supabase Dashboard → Settings → API → anon public key | ✅ Sim |
-| `SUPABASE_SERVICE_KEY` | Chave de serviço (service_role) | Supabase Dashboard → Settings → API → service_role key | ✅ Sim |
+| `SUPABASE_KEY` | Chave pública (anon key) - para API REST | Supabase Dashboard → Settings → API → anon public key | ✅ Sim |
+| `SUPABASE_SERVICE_KEY` | Chave de serviço (service_role) - para upload | Supabase Dashboard → Settings → API → service_role key | ✅ Sim |
+
+## ⚠️ Variáveis S3 (Opcionais - Apenas se API REST não funcionar)
+
+O sistema tenta usar a API REST primeiro. Só usa S3 como fallback se a API REST falhar.
+
+| Variável | Descrição | Obrigatória |
+|---------|-----------|-------------|
+| `SUPABASE_S3_ENDPOINT` | Endpoint S3 do Supabase | ❌ Não (fallback) |
+| `SUPABASE_S3_ACCESS_KEY` | Access Key S3 | ❌ Não (fallback) |
+| `SUPABASE_S3_SECRET_KEY` | Secret Key S3 | ❌ Não (fallback) |
+| `SUPABASE_S3_REGION` | Região S3 | ❌ Não (fallback) |
 
 ## 🔧 Configurações Hardcoded (Não Precisa Configurar)
 

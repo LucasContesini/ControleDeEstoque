@@ -74,15 +74,6 @@ def test_db():
 
 Acesse: `https://seu-projeto.vercel.app/api/test-db`
 
-## Alternativa: Usar Railway ou Render
-
-Se o problema persistir, considere usar **Railway** ou **Render**, que são mais adequados para aplicações Flask com banco de dados:
-
-- **Railway**: https://railway.app
-- **Render**: https://render.com
-
-Ambos têm melhor suporte para conexões de banco de dados e não têm as limitações de timeout do Vercel.
-
 ## Verificar Logs
 
 No dashboard do Vercel:

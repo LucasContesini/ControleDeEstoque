@@ -135,5 +135,5 @@ Após seguir estes passos, sua aplicação estará no ar no Vercel!
 
 ## 💡 Dica
 
-Se tiver problemas com timeout no Vercel, considere usar **Railway** ou **Render**, que são melhores para aplicações Flask contínuas.
+Se tiver problemas com timeout no Vercel, considere otimizar o código ou fazer upgrade para o plano Pro (60s de timeout).
 

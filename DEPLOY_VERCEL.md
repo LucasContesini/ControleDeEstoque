@@ -1,9 +1,5 @@
 # Deploy no Vercel - Controle de Estoque
 
-## ⚠️ Importante sobre Vercel
-
-O Vercel é otimizado para aplicações serverless e pode ter limitações com Flask. **Recomendamos usar Railway ou Render** para este projeto, que são mais adequados para aplicações Flask.
-
 ## 📋 Pré-requisitos
 
 1. Conta no Vercel
@@ -52,35 +48,6 @@ Ou conecte diretamente ao GitHub no dashboard do Vercel.
 3. **Upload de arquivos**: Pode ter limitações com uploads grandes
 4. **Sessões**: Não mantém estado entre requisições
 
-## 🔄 Alternativas Recomendadas
-
-### Railway (Recomendado)
-- ✅ Suporta Flask nativamente
-- ✅ Sem timeout
-- ✅ Uploads ilimitados
-- ✅ Grátis para começar
-
-**Deploy no Railway:**
-1. Acesse: https://railway.app
-2. Conecte seu repositório GitHub
-3. Configure as variáveis de ambiente
-4. Deploy automático!
-
-### Render
-- ✅ Suporta Flask
-- ✅ Grátis (com limitações)
-- ✅ Fácil configuração
-
-**Deploy no Render:**
-1. Acesse: https://render.com
-2. New → Web Service
-3. Conecte seu repositório
-4. Configure:
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `gunicorn app:app --host 0.0.0.0 --port $PORT`
-5. Adicione variáveis de ambiente
-6. Deploy!
-
 ## 📝 Arquivos Necessários
 
 O projeto já inclui:
@@ -96,7 +63,7 @@ O projeto já inclui:
 
 ### Erro: "Timeout"
 - Aumente o timeout no plano Pro do Vercel
-- Ou considere usar Railway/Render
+- Otimize o código para ser mais rápido
 
 ### Erro: "Database connection failed"
 - Verifique se as variáveis de ambiente estão configuradas
@@ -105,6 +72,4 @@ O projeto já inclui:
 ## 📚 Recursos
 
 - [Vercel Python Documentation](https://vercel.com/docs/concepts/functions/serverless-functions/runtimes/python)
-- [Railway Documentation](https://docs.railway.app)
-- [Render Documentation](https://render.com/docs)
 

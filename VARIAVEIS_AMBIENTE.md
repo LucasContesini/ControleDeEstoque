@@ -66,21 +66,11 @@ heroku config:set SUPABASE_KEY=sua_anon_key
 heroku config:set SUPABASE_SERVICE_KEY=sua_service_key
 ```
 
-### Railway
+### Vercel
 
-No dashboard do Railway, vá em **Variables** e adicione todas as variáveis acima.
+No dashboard do Vercel, vá em **Settings** → **Environment Variables** e adicione todas as variáveis acima.
 
-### Render
-
-No dashboard do Render, vá em **Environment** e adicione todas as variáveis acima.
-
-### DigitalOcean App Platform
-
-No dashboard, vá em **Settings** → **Environment Variables** e adicione todas as variáveis acima.
-
-### Vercel / Netlify
-
-⚠️ **Atenção:** Esses provedores são para aplicações serverless. Para Flask, considere Railway, Render ou Heroku.
+⚠️ **Importante:** Adicione as variáveis para todos os ambientes (Production, Preview, Development).
 
 ---
 

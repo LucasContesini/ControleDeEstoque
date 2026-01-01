@@ -264,58 +264,6 @@ def debug_storage():
             'traceback': traceback.format_exc()
         }), 500
 
-@app.route('/api/debug/storage', methods=['GET'])
-def debug_storage():
-    """Rota de debug para verificar configuração do Storage"""
-    try:
-        from config import SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY, BUCKET_NAME, IS_VERCEL
-        from storage import usar_storage_cloud, SUPABASE_LIB_AVAILABLE
-        
-        info = {
-            'is_vercel': IS_VERCEL,
-            'storage_cloud_disponivel': STORAGE_CLOUD_DISPONIVEL,
-            'usar_s3': USAR_S3,
-            'supabase_lib_available': SUPABASE_LIB_AVAILABLE,
-            'usar_storage_cloud': usar_storage_cloud() if 'usar_storage_cloud' in globals() else False,
-            'config': {
-                'supabase_url': SUPABASE_URL if SUPABASE_URL else 'NÃO CONFIGURADO',
-                'supabase_key': SUPABASE_KEY[:20] + '...' if SUPABASE_KEY and len(SUPABASE_KEY) > 20 else (SUPABASE_KEY if SUPABASE_KEY else 'NÃO CONFIGURADO'),
-                'supabase_service_key': SUPABASE_SERVICE_KEY[:20] + '...' if SUPABASE_SERVICE_KEY and len(SUPABASE_SERVICE_KEY) > 20 else (SUPABASE_SERVICE_KEY if SUPABASE_SERVICE_KEY else 'NÃO CONFIGURADO'),
-                'bucket_name': BUCKET_NAME if BUCKET_NAME else 'NÃO CONFIGURADO',
-            },
-            'env_vars': {
-                'SUPABASE_URL': '✅' if os.getenv('SUPABASE_URL') else '❌',
-                'SUPABASE_KEY': '✅' if os.getenv('SUPABASE_KEY') else '❌',
-                'SUPABASE_SERVICE_KEY': '✅' if os.getenv('SUPABASE_SERVICE_KEY') else '❌',
-                'BUCKET_NAME': '✅' if os.getenv('BUCKET_NAME') else '❌ (usando padrão)',
-            },
-            'upload_function': '✅' if upload_imagem_cloud else '❌',
-            'delete_function': '✅' if deletar_imagem_cloud else '❌',
-        }
-        
-        # Verificar valores reais das envs (mascarados)
-        env_values = {}
-        for key in ['SUPABASE_URL', 'SUPABASE_KEY', 'SUPABASE_SERVICE_KEY', 'BUCKET_NAME']:
-            value = os.getenv(key, '')
-            if value:
-                if 'KEY' in key:
-                    env_values[key] = f"{value[:10]}...{value[-5:]}" if len(value) > 15 else '***'
-                else:
-                    env_values[key] = value
-            else:
-                env_values[key] = 'NÃO DEFINIDO'
-        
-        info['env_values'] = env_values
-        
-        return jsonify(info)
-    except Exception as e:
-        import traceback
-        return jsonify({
-            'status': 'erro',
-            'erro': str(e),
-            'traceback': traceback.format_exc()
-        }), 500
-
 @app.route('/api/debug/banco', methods=['GET'])
 def debug_banco():
     """Rota de debug para verificar conexão e dados do banco"""

@@ -604,12 +604,12 @@ async function salvarProduto(event) {
     if (quantidade_ml < 0) {
         quantidade_ml = 0;
         document.getElementById('quantidade_ml').value = 0;
-        mostrarToast('⚠️ Quantidade do Mercado Livre não pode ser negativa', 'aviso');
+        mostrarToast('Quantidade do Mercado Livre não pode ser negativa', 'aviso');
     }
     if (quantidade_shopee < 0) {
         quantidade_shopee = 0;
         document.getElementById('quantidade_shopee').value = 0;
-        mostrarToast('⚠️ Quantidade da Shopee não pode ser negativa', 'aviso');
+        mostrarToast('Quantidade da Shopee não pode ser negativa', 'aviso');
     }
     
     const quantidade = quantidade_ml + quantidade_shopee; // Calcular total automaticamente
@@ -673,7 +673,7 @@ async function salvarProduto(event) {
         const data = await response.json();
         
         if (response.ok) {
-            const mensagem = modoEdicao ? `✅ "${titulo}" atualizado com sucesso!` : `✅ "${titulo}" criado com sucesso!`;
+            const mensagem = modoEdicao ? `"${titulo}" atualizado com sucesso!` : `"${titulo}" criado com sucesso!`;
             mostrarToast(mensagem, 'sucesso');
             fecharModal();
             await carregarProdutos();
@@ -723,7 +723,7 @@ async function deletarProduto(id) {
         const data = await response.json();
         
         if (response.ok) {
-            mostrarToast(`✅ "${nomeProduto}" excluído com sucesso!`, 'sucesso');
+            mostrarToast(`"${nomeProduto}" excluído com sucesso!`, 'sucesso');
             await carregarProdutos();
             // Restaurar ordenação após recarregar
             document.getElementById('ordenacao').value = ordenacaoAtual;

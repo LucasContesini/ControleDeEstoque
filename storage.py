@@ -31,7 +31,8 @@ def get_supabase_client(use_service_key=False):
 
 def usar_storage_cloud():
     """Verifica se deve usar storage em nuvem"""
-    return bool(SUPABASE_URL and SUPABASE_KEY)
+    # Verificar se todas as variáveis necessárias estão configuradas
+    return bool(SUPABASE_URL and SUPABASE_KEY and SUPABASE_SERVICE_KEY)
 
 def upload_imagem_cloud(file, filename):
     """

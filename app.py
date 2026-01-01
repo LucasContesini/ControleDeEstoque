@@ -591,7 +591,7 @@ def upload_imagem():
         ensure_storage_initialized()
         
         # No Vercel, só podemos usar Supabase Storage (sistema de arquivos é somente leitura)
-        from config import IS_VERCEL
+        from config import IS_VERCEL, SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY
         
         if STORAGE_CLOUD_DISPONIVEL and upload_imagem_cloud:
             try:
@@ -604,9 +604,22 @@ def upload_imagem():
                 return jsonify({'erro': f'Erro ao fazer upload para nuvem: {str(e)}'}), 500
         elif IS_VERCEL:
             # No Vercel, Supabase Storage é obrigatório
-            return jsonify({
-                'erro': 'Supabase Storage não configurado. Configure SUPABASE_URL, SUPABASE_KEY e SUPABASE_SERVICE_KEY.'
-            }), 500
+            # Verificar quais variáveis estão faltando
+            variaveis_faltando = []
+            if not SUPABASE_URL:
+                variaveis_faltando.append('SUPABASE_URL')
+            if not SUPABASE_KEY:
+                variaveis_faltando.append('SUPABASE_KEY')
+            if not SUPABASE_SERVICE_KEY:
+                variaveis_faltando.append('SUPABASE_SERVICE_KEY')
+            
+            mensagem = 'Supabase Storage não configurado.'
+            if variaveis_faltando:
+                mensagem += f' Configure as variáveis: {", ".join(variaveis_faltando)}'
+            else:
+                mensagem += ' Verifique as configurações no Vercel Dashboard.'
+            
+            return jsonify({'erro': mensagem}), 500
         else:
             # Fallback: armazenamento local (apenas em desenvolvimento)
             try:

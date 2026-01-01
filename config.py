@@ -13,12 +13,20 @@ import os
 SUPABASE_URL = 'https://htrghiefnoaytjmcdbuk.supabase.co'
 
 # Configurações do banco de dados PostgreSQL
-# IMPORTANTE: Vercel é IPv4-only, então use Session Pooler ou Transaction Pooler
-# do Supabase, não a Direct Connection (porta 5432)
-DB_HOST = 'db.htrghiefnoaytjmcdbuk.supabase.co'
-DB_PORT = '6543'  # Porta do Transaction Pooler (compatível com IPv4-only como Vercel)
+# IMPORTANTE: Vercel é IPv4-only! Use Session Pooler do Supabase.
+# 
+# Session Pooler:
+# - Host: aws-0-us-west-2.pooler.supabase.com
+# - Porta: 5432
+# - User: postgres.htrghiefnoaytjmcdbuk
+# - IPv4 proxied for free (funciona com Vercel!)
+#
+# Se usar variáveis individuais, use os valores do Session Pooler acima.
+# Se usar DATABASE_URL, copie a connection string completa do Supabase Dashboard.
+DB_HOST = 'aws-0-us-west-2.pooler.supabase.com'  # Session Pooler (IPv4-compatible)
+DB_PORT = '5432'  # Porta do Session Pooler
 DB_NAME = 'postgres'  # Nome padrão do banco no Supabase
-DB_USER = 'postgres'  # Usuário padrão do Supabase
+DB_USER = 'postgres.htrghiefnoaytjmcdbuk'  # User do Session Pooler (formato: postgres.PROJECT_REF)
 
 # Nome do bucket no Supabase Storage
 BUCKET_NAME = 'Controle de Estoque'

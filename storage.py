@@ -77,7 +77,11 @@ def upload_imagem_cloud(file, filename):
         
         return url
     except Exception as e:
-        raise Exception(f"Erro ao fazer upload para Supabase: {str(e)}")
+        error_msg = str(e)
+        # Melhorar mensagem de erro para chaves inválidas
+        if "Invalid API key" in error_msg or "invalid" in error_msg.lower():
+            raise Exception(f"Chave de API inválida. Verifique se SUPABASE_KEY e SUPABASE_SERVICE_KEY estão corretas no Vercel Dashboard. As chaves devem ser obtidas em: Supabase Dashboard → Settings → API → anon key (pública) e service_role key (secreta). Erro original: {error_msg}")
+        raise Exception(f"Erro ao fazer upload para Supabase: {error_msg}")
 
 def deletar_imagem_cloud(filename):
     """Deleta uma imagem do Supabase Storage"""

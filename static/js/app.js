@@ -759,6 +759,53 @@ async function salvarProduto(event) {
     }
 }
 
+// Duplicar produto
+async function duplicarProduto(id) {
+    try {
+        // Buscar produto original
+        const response = await fetch(`/api/produtos/${id}`);
+        if (!response.ok) {
+            mostrarToast('Produto não encontrado', 'erro');
+            return;
+        }
+        
+        const produtoOriginal = await response.json();
+        
+        // Criar cópia com nome modificado
+        const produtoCopia = {
+            titulo: `${produtoOriginal.titulo} (Cópia)`,
+            descricao: produtoOriginal.descricao || '',
+            quantidade_mercado_livre: produtoOriginal.quantidade_mercado_livre || 0,
+            quantidade_shopee: produtoOriginal.quantidade_shopee || 0,
+            imagem: produtoOriginal.imagem || '',
+            especificacoes: produtoOriginal.especificacoes || {}
+        };
+        
+        // Salvar produto duplicado
+        const saveResponse = await fetch('/api/produtos', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(produtoCopia)
+        });
+        
+        const data = await saveResponse.json();
+        
+        if (saveResponse.ok) {
+            mostrarToast(`"${produtoCopia.titulo}" duplicado com sucesso!`, 'sucesso');
+            await carregarProdutos();
+            // Restaurar ordenação após recarregar
+            document.getElementById('ordenacao').value = ordenacaoAtual;
+            ordenarProdutos();
+        } else {
+            mostrarToast(data.erro || 'Erro ao duplicar produto', 'erro');
+        }
+    } catch (error) {
+        mostrarToast('Erro ao duplicar produto: ' + error.message, 'erro');
+    }
+}
+
 // Deletar produto com confirmação melhorada
 async function deletarProduto(id) {
     // Buscar nome do produto para mostrar na confirmação

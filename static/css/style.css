@@ -306,6 +306,24 @@ header .btn-primary {
     position: relative;
 }
 
+.produto-card.estoque-baixo {
+    border-left: 4px solid #dc3545;
+}
+
+.badge-estoque-baixo {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: #dc3545;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    z-index: 10;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
 .produto-card:hover {
     transform: translateY(-5px);
     box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);

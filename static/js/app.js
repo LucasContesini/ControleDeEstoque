@@ -195,6 +195,20 @@ document.addEventListener('DOMContentLoaded', () => {
 async function carregarProdutos() {
     try {
         const response = await fetch('/api/produtos');
+        
+        // Verificar se a resposta foi bem-sucedida
+        if (!response.ok) {
+            const errorText = await response.text();
+            let errorMsg = `Erro ${response.status}: ${response.statusText}`;
+            try {
+                const errorJson = JSON.parse(errorText);
+                errorMsg = errorJson.erro || errorMsg;
+            } catch {
+                errorMsg = errorText || errorMsg;
+            }
+            throw new Error(errorMsg);
+        }
+        
         produtos = await response.json();
         produtosFiltrados = [...produtos];
         paginaAtual = 1; // Resetar para primeira página
@@ -208,7 +222,12 @@ async function carregarProdutos() {
             loadingInicial.style.display = 'none';
         }
     } catch (error) {
-        mostrarMensagem('Erro ao carregar produtos: ' + error.message, 'erro');
+        console.error('Erro ao carregar produtos:', error);
+        let errorMsg = error.message;
+        if (error.message === 'Failed to fetch') {
+            errorMsg = 'Não foi possível conectar ao servidor. Verifique se o servidor está rodando.';
+        }
+        mostrarMensagem('Erro ao carregar produtos: ' + errorMsg, 'erro');
         // Esconder loading mesmo em caso de erro
         const loadingInicial = document.getElementById('loading-inicial');
         if (loadingInicial) {

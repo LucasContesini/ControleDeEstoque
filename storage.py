@@ -2,10 +2,17 @@
 Módulo para gerenciar armazenamento de imagens no Supabase Storage
 """
 import os
-from supabase import create_client, Client
+import requests
 from werkzeug.utils import secure_filename
 from datetime import datetime
 from config import SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY, BUCKET_NAME
+
+# Tentar importar biblioteca Supabase (opcional)
+try:
+    from supabase import create_client, Client
+    SUPABASE_LIB_AVAILABLE = True
+except ImportError:
+    SUPABASE_LIB_AVAILABLE = False
 
 # Cliente Supabase (será inicializado quando necessário)
 _supabase_client: Client = None
@@ -45,48 +52,95 @@ def upload_imagem_cloud(file, filename):
     Retorna a URL pública da imagem
     """
     try:
-        # Usar service key para upload (tem permissões administrativas)
-        # Se não tiver service key, usar anon key
-        supabase = get_supabase_client(use_service_key=True) if SUPABASE_SERVICE_KEY else get_supabase_client()
+        # Tentar usar API REST diretamente primeiro (compatível com novas chaves sb_secret_)
+        if SUPABASE_URL and SUPABASE_SERVICE_KEY:
+            return upload_via_rest_api(file, filename)
         
-        # Ler o arquivo
-        file_content = file.read()
-        file.seek(0)  # Resetar posição do arquivo
+        # Fallback: usar biblioteca Supabase se disponível
+        if SUPABASE_LIB_AVAILABLE:
+            return upload_via_library(file, filename)
         
-        # Determinar content type
-        content_type = file.content_type or 'image/jpeg'
-        if filename.lower().endswith('.png'):
-            content_type = 'image/png'
-        elif filename.lower().endswith('.gif'):
-            content_type = 'image/gif'
-        elif filename.lower().endswith('.webp'):
-            content_type = 'image/webp'
-        
-        # Fazer upload (tentar fazer upload diretamente, sem verificar bucket)
-        try:
-            response = supabase.storage.from_(BUCKET_NAME).upload(
-                filename,
-                file_content,
-                file_options={"content-type": content_type, "upsert": "true"}
-            )
-        except Exception as upload_error:
-            # Se der erro, tentar sem upsert
-            response = supabase.storage.from_(BUCKET_NAME).upload(
-                filename,
-                file_content,
-                file_options={"content-type": content_type}
-            )
-        
-        # Obter URL pública (pode usar anon key para isso)
-        url = supabase.storage.from_(BUCKET_NAME).get_public_url(filename)
-        
-        return url
+        raise Exception("Nenhum método de upload disponível")
     except Exception as e:
         error_msg = str(e)
         # Melhorar mensagem de erro para chaves inválidas
-        if "Invalid API key" in error_msg or "invalid" in error_msg.lower():
-            raise Exception(f"Chave de API inválida. Verifique se SUPABASE_KEY e SUPABASE_SERVICE_KEY estão corretas no Vercel Dashboard. As chaves devem ser obtidas em: Supabase Dashboard → Settings → API → anon key (pública) e service_role key (secreta). Erro original: {error_msg}")
+        if "Invalid API key" in error_msg or "invalid" in error_msg.lower() or "401" in error_msg or "403" in error_msg:
+            raise Exception(f"Chave de API inválida ou sem permissão. Verifique se SUPABASE_SERVICE_KEY está correta no Vercel Dashboard. A chave deve ser a service_role key do Supabase Dashboard → Settings → API. Erro original: {error_msg}")
         raise Exception(f"Erro ao fazer upload para Supabase: {error_msg}")
+
+def upload_via_rest_api(file, filename):
+    """Upload usando API REST diretamente (compatível com novas chaves)"""
+    # Ler o arquivo
+    file_content = file.read()
+    file.seek(0)
+    
+    # Determinar content type
+    content_type = file.content_type or 'image/jpeg'
+    if filename.lower().endswith('.png'):
+        content_type = 'image/png'
+    elif filename.lower().endswith('.gif'):
+        content_type = 'image/gif'
+    elif filename.lower().endswith('.webp'):
+        content_type = 'image/webp'
+    
+    # URL da API de Storage do Supabase
+    url_base = SUPABASE_URL.rstrip('/')
+    upload_url = f"{url_base}/storage/v1/object/{BUCKET_NAME}/{filename}"
+    
+    # Headers com a service key
+    headers = {
+        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+        "Content-Type": content_type,
+        "x-upsert": "true"  # Permite sobrescrever arquivo existente
+    }
+    
+    # Fazer upload
+    response = requests.put(upload_url, data=file_content, headers=headers)
+    
+    if response.status_code not in [200, 201]:
+        error_detail = response.text
+        raise Exception(f"Erro ao fazer upload: {response.status_code} - {error_detail}")
+    
+    # Construir URL pública
+    public_url = f"{url_base}/storage/v1/object/public/{BUCKET_NAME}/{filename}"
+    return public_url
+
+def upload_via_library(file, filename):
+    """Upload usando biblioteca Supabase (fallback)"""
+    # Usar service key para upload (tem permissões administrativas)
+    supabase = get_supabase_client(use_service_key=True) if SUPABASE_SERVICE_KEY else get_supabase_client()
+    
+    # Ler o arquivo
+    file_content = file.read()
+    file.seek(0)
+    
+    # Determinar content type
+    content_type = file.content_type or 'image/jpeg'
+    if filename.lower().endswith('.png'):
+        content_type = 'image/png'
+    elif filename.lower().endswith('.gif'):
+        content_type = 'image/gif'
+    elif filename.lower().endswith('.webp'):
+        content_type = 'image/webp'
+    
+    # Fazer upload
+    try:
+        response = supabase.storage.from_(BUCKET_NAME).upload(
+            filename,
+            file_content,
+            file_options={"content-type": content_type, "upsert": "true"}
+        )
+    except Exception:
+        # Se der erro, tentar sem upsert
+        response = supabase.storage.from_(BUCKET_NAME).upload(
+            filename,
+            file_content,
+            file_options={"content-type": content_type}
+        )
+    
+    # Obter URL pública
+    url = supabase.storage.from_(BUCKET_NAME).get_public_url(filename)
+    return url
 
 def deletar_imagem_cloud(filename):
     """Deleta uma imagem do Supabase Storage"""

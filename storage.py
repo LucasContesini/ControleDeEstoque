@@ -9,23 +9,28 @@ from config import SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY, BUCKET_NAME
 
 # Cliente Supabase (será inicializado quando necessário)
 _supabase_client: Client = None
+_supabase_service_client: Client = None
 
 def get_supabase_client(use_service_key=False):
     """Retorna o cliente Supabase"""
-    global _supabase_client
+    global _supabase_client, _supabase_service_client
     # Se precisar de service key, criar cliente separado
     if use_service_key:
         if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
             raise ValueError("SUPABASE_URL e SUPABASE_SERVICE_KEY devem estar configurados")
-        url = SUPABASE_URL.rstrip('/') + '/'
-        return create_client(url, SUPABASE_SERVICE_KEY)
+        # Usar cliente em cache se já existir
+        if _supabase_service_client is None:
+            url = SUPABASE_URL.rstrip('/')
+            # Biblioteca Supabase não precisa de barra final
+            _supabase_service_client = create_client(url, SUPABASE_SERVICE_KEY)
+        return _supabase_service_client
     
     # Cliente normal com anon key
     if _supabase_client is None:
         if not SUPABASE_URL or not SUPABASE_KEY:
             raise ValueError("SUPABASE_URL e SUPABASE_KEY devem estar configurados")
-        # Garantir que a URL termine com /
-        url = SUPABASE_URL.rstrip('/') + '/'
+        url = SUPABASE_URL.rstrip('/')
+        # Biblioteca Supabase não precisa de barra final
         _supabase_client = create_client(url, SUPABASE_KEY)
     return _supabase_client
 

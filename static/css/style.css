@@ -308,17 +308,18 @@ header .btn-primary {
 
 .produto-card.estoque-baixo {
     position: relative;
+    overflow: hidden;
 }
 
 /* Faixa diagonal de estoque baixo */
 .faixa-estoque-baixo {
     position: absolute;
-    top: 18px;
-    right: -42px;
+    top: 15px;
+    right: -35px;
     background: #dc3545;
     color: white;
-    padding: 5px 55px;
-    font-size: 0.65rem;
+    padding: 4px 45px;
+    font-size: 0.6rem;
     font-weight: 700;
     letter-spacing: 0.5px;
     transform: rotate(45deg);

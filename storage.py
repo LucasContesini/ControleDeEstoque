@@ -52,13 +52,25 @@ def upload_imagem_cloud(file, filename):
     Retorna a URL pública da imagem
     """
     try:
-        # Tentar usar API REST diretamente primeiro (compatível com novas chaves sb_secret_)
-        if SUPABASE_URL and SUPABASE_SERVICE_KEY:
-            return upload_via_rest_api(file, filename)
+        # Tentar usar biblioteca Supabase primeiro (funciona com chaves sb_* e JWT)
+        if SUPABASE_LIB_AVAILABLE and SUPABASE_URL and SUPABASE_SERVICE_KEY:
+            try:
+                return upload_via_library(file, filename)
+            except Exception as lib_error:
+                # Se biblioteca falhar, tentar API REST
+                error_msg = str(lib_error).lower()
+                if "invalid" not in error_msg and "401" not in error_msg and "403" not in error_msg:
+                    # Erro não relacionado a autenticação, tentar API REST
+                    if SUPABASE_SERVICE_KEY.startswith('eyJ'):
+                        return upload_via_rest_api(file, filename)
+                    raise
         
-        # Fallback: usar biblioteca Supabase se disponível
-        if SUPABASE_LIB_AVAILABLE:
-            return upload_via_library(file, filename)
+        # Se não tiver biblioteca ou falhar, tentar API REST (só funciona com JWT)
+        if SUPABASE_URL and SUPABASE_SERVICE_KEY:
+            if SUPABASE_SERVICE_KEY.startswith('eyJ'):
+                return upload_via_rest_api(file, filename)
+            else:
+                raise Exception("API REST requer chaves JWT (eyJ...). Use a biblioteca Supabase ou atualize as chaves.")
         
         raise Exception("Nenhum método de upload disponível")
     except Exception as e:
@@ -90,8 +102,8 @@ def upload_via_rest_api(file, filename):
     # Verificar se a chave é JWT (começa com eyJ) ou nova chave (sb_secret_)
     # A API REST de Storage requer chaves JWT tradicionais
     service_key = SUPABASE_SERVICE_KEY
-    if service_key.startswith('sb_secret_'):
-        raise Exception("A API REST do Supabase Storage requer chaves JWT tradicionais (que começam com 'eyJ...'), não as novas chaves 'sb_secret_'. Obtenha a service_role key JWT em: Supabase Dashboard → Settings → API → service_role key")
+    if not service_key.startswith('eyJ'):
+        raise Exception("A API REST do Supabase Storage requer chaves JWT tradicionais (que começam com 'eyJ...'), não as novas chaves 'sb_secret_'. Use a biblioteca Supabase ou obtenha a service_role key JWT em: Supabase Dashboard → Settings → API → service_role key")
     
     # Headers com a service key (deve ser JWT)
     headers = {

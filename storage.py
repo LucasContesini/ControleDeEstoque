@@ -75,12 +75,25 @@ def upload_imagem_cloud(file, filename):
         # Apenas chaves JWT (eyJ...) funcionam com API REST
         # Para chaves sb_secret_, DEVEMOS usar a biblioteca Supabase
         
+        # Verificar se temos as variáveis necessárias
+        if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+            raise Exception("SUPABASE_URL e SUPABASE_SERVICE_KEY devem estar configurados")
+        
         # Se a chave for sb_secret_, usar biblioteca (única opção)
-        if SUPABASE_SERVICE_KEY and SUPABASE_SERVICE_KEY.startswith('sb_secret_'):
-            if SUPABASE_LIB_AVAILABLE and SUPABASE_URL:
+        if SUPABASE_SERVICE_KEY.startswith('sb_secret_'):
+            if not SUPABASE_LIB_AVAILABLE:
+                raise Exception("Chaves sb_secret_ requerem a biblioteca Supabase Python. A biblioteca não está disponível. Verifique se 'supabase' está instalado no requirements.txt")
+            if not SUPABASE_URL:
+                raise Exception("SUPABASE_URL não está configurado")
+            # Tentar usar biblioteca - é a única opção para chaves sb_secret_
+            try:
                 return upload_via_library(file, filename)
-            else:
-                raise Exception("Chaves sb_secret_ requerem a biblioteca Supabase Python. Instale: pip install supabase")
+            except Exception as lib_error:
+                error_str = str(lib_error)
+                # Se for erro de chave inválida, dar mensagem mais clara
+                if "Invalid API key" in error_str or "invalid" in error_str.lower():
+                    raise Exception(f"A biblioteca Supabase não conseguiu usar a chave sb_secret_. Isso pode indicar que a biblioteca precisa ser atualizada ou que a chave está incorreta. Erro: {error_str}")
+                raise Exception(f"Erro ao fazer upload usando biblioteca Supabase: {error_str}")
         
         # Para chaves JWT (eyJ...), tentar biblioteca primeiro, depois API REST
         if SUPABASE_LIB_AVAILABLE and SUPABASE_URL and SUPABASE_SERVICE_KEY:
@@ -107,7 +120,7 @@ def upload_imagem_cloud(file, filename):
     except Exception as e:
         error_msg = str(e)
         # Melhorar mensagem de erro para chaves inválidas
-        if "Invalid API key" in error_msg or "invalid" in error_msg.lower() or "401" in error_msg or "403" in error_msg:
+        if "Invalid API key" in error_msg or "invalid" in error_msg.lower() or "401" in error_msg or "403" in error_msg or "Invalid Compact JWS" in error_msg:
             raise Exception(f"Chave de API inválida ou sem permissão. Verifique se SUPABASE_SERVICE_KEY está correta no Vercel Dashboard. A chave deve ser a service_role key do Supabase Dashboard → Settings → API. Erro original: {error_msg}")
         raise Exception(f"Erro ao fazer upload para Supabase: {error_msg}")
 

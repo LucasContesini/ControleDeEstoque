@@ -1,8 +1,13 @@
 let produtos = [];
 let produtosFiltrados = [];
+let produtosPaginados = [];
 let modoEdicao = false;
 let especificacoesCount = 0;
 let ordenacaoAtual = 'recente';
+let paginaAtual = 1;
+let produtosPorPagina = 20;
+let filtroEstoqueBaixo = false;
+let filtroEcommerce = 'todos'; // 'todos', 'ml', 'shopee'
 
 // Imagem placeholder padrão (caixa de papelão com "Sem Foto")
 const IMAGEM_PLACEHOLDER = `data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y1ZjVmNSIvPgogIDxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDUwLCA0MCkiPgogICAgPHBhdGggZD0iTSAyMCAzMCBMIDYwIDEwIEwgMTAwIDMwIEwgNjAgNTAgWiIgZmlsbD0iIzhCNDUxMyIgc3Ryb2tlPSIjNjU0MzIxIiBzdHJva2Utd2lkdGg9IjEiLz4KICAgIDxwYXRoIGQ9Ik0gMjAgMzAgTCA2MCA1MCBMIDYwIDkwIEwgMjAgNzAgWiIgZmlsbD0iI0EwNTIyRCIgc3Ryb2tlPSIjNjU0MzIxIiBzdHJva2Utd2lkdGg9IjEiLz4KICAgIDxwYXRoIGQ9Ik0gNjAgNTAgTCAxMDAgMzAgTCAxMDAgNzAgTCA2MCA5MCBaIiBmaWxsPSIjQ0Q4NTNGIiBzdHJva2U9IiM2NTQzMjEiIHN0cm9rZS13aWR0aD0iMSIvPgogICAgPGxpbmUgeDE9IjYwIiB5MT0iMTAiIHgyPSI2MCIgeTI9IjkwIiBzdHJva2U9IiM2NTQzMjEiIHN0cm9rZS13aWR0aD0iMS41Ii8+CiAgICA8cmVjdCB4PSIyNSIgeT0iNDUiIHdpZHRoPSIyMCIgaGVpZ2h0PSIxNSIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iMC45IiByeD0iMiIvPgogICAgPGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNzUsIDM1KSI+CiAgICAgIDxlbGxpcHNlIGN4PSIwIiBjeT0iOCIgcng9IjQiIHJ5PSI2IiBmaWxsPSIjMzMzIiBvcGFjaXR5PSIwLjciLz4KICAgICAgPGxpbmUgeDE9Ii0zIiB5MT0iNSIgeDI9IjMiIHkyPSI1IiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iMSIvPgogICAgPC9nPgogICAgPGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODUsIDUwKSI+CiAgICAgIDxwYXRoIGQ9Ik0gMCAwIEwgNSA1IEwgLTUgNSBaIiBmaWxsPSIjMzMzIiBvcGFjaXR5PSIwLjciLz4KICAgICAgPHBhdGggZD0iTSAwIDUgTCA1IDEwIEwgLTUgMTAgWiIgZmlsbD0iIzMzMyIgb3BhY2l0eT0iMC43Ii8+CiAgICA8L2c+CiAgPC9nPgogIDx0ZXh0IHg9IjUwJSIgeT0iMTYwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5OTk5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtd2VpZ2h0PSI1MDAiPlNlbSBGb3RvPC90ZXh0Pgo8L3N2Zz4=`;
@@ -228,9 +233,11 @@ function renderizarProdutos(listaProdutos) {
         
         return `
         <div class="produto-card">
-            <img src="${imagemFinal}" 
+            <img data-src="${imagemFinal}" 
+                 src="${IMAGEM_PLACEHOLDER}" 
                  alt="${produto.titulo}" 
-                 class="produto-imagem"
+                 class="produto-imagem lazy-load"
+                 loading="lazy"
                  onerror="this.onerror=null; this.src='${IMAGEM_PLACEHOLDER}';">
             <h3 class="produto-titulo">${produto.titulo}</h3>
             <p class="produto-descricao">${produto.descricao || 'Sem descrição'}</p>
@@ -283,15 +290,7 @@ function filtrarProdutos() {
     
     // Aguardar 300ms antes de filtrar
     buscaTimeout = setTimeout(() => {
-        const busca = document.getElementById('busca').value.toLowerCase();
-        if (busca === '') {
-            produtosFiltrados = [...produtos];
-        } else {
-            produtosFiltrados = produtos.filter(produto => 
-                produto.titulo.toLowerCase().includes(busca) ||
-                (produto.descricao && produto.descricao.toLowerCase().includes(busca))
-            );
-        }
+        paginaAtual = 1; // Resetar para primeira página ao filtrar
         ordenarProdutos();
     }, 300);
 }
@@ -330,7 +329,146 @@ function ordenarProdutos() {
             break;
     }
     
-    renderizarProdutos(produtosParaOrdenar);
+    // Aplicar paginação
+    aplicarPaginacao(produtosParaOrdenar);
+}
+
+// Aplicar paginação
+function aplicarPaginacao(listaProdutos) {
+    const totalPaginas = Math.ceil(listaProdutos.length / produtosPorPagina);
+    
+    // Ajustar página atual se necessário
+    if (paginaAtual > totalPaginas && totalPaginas > 0) {
+        paginaAtual = totalPaginas;
+    }
+    if (paginaAtual < 1) {
+        paginaAtual = 1;
+    }
+    
+    // Calcular índices
+    const inicio = (paginaAtual - 1) * produtosPorPagina;
+    const fim = inicio + produtosPorPagina;
+    
+    produtosPaginados = listaProdutos.slice(inicio, fim);
+    
+    // Renderizar produtos
+    renderizarProdutos(produtosPaginados);
+    
+    // Renderizar controles de paginação
+    renderizarPaginacao(totalPaginas, listaProdutos.length);
+    
+    // Carregar imagens lazy após renderizar
+    setTimeout(() => carregarImagensLazy(), 100);
+}
+
+// Renderizar controles de paginação
+function renderizarPaginacao(totalPaginas, totalProdutos) {
+    const container = document.getElementById('produtos-container');
+    const paginacaoContainer = document.getElementById('paginacao-container');
+    
+    if (!paginacaoContainer) {
+        // Criar container de paginação se não existir
+        const novoContainer = document.createElement('div');
+        novoContainer.id = 'paginacao-container';
+        novoContainer.className = 'paginacao-container';
+        container.parentNode.insertBefore(novoContainer, container.nextSibling);
+    }
+    
+    if (totalPaginas <= 1) {
+        paginacaoContainer.innerHTML = '';
+        return;
+    }
+    
+    const inicio = (paginaAtual - 1) * produtosPorPagina + 1;
+    const fim = Math.min(paginaAtual * produtosPorPagina, totalProdutos);
+    
+    let html = `
+        <div class="paginacao-info">
+            Mostrando ${inicio}-${fim} de ${totalProdutos} produtos
+        </div>
+        <div class="paginacao-controles">
+            <button class="btn btn-secondary" onclick="irParaPagina(${paginaAtual - 1})" ${paginaAtual === 1 ? 'disabled' : ''}>
+                ← Anterior
+            </button>
+            <div class="paginacao-numeros">
+    `;
+    
+    // Mostrar até 5 páginas
+    let inicioPagina = Math.max(1, paginaAtual - 2);
+    let fimPagina = Math.min(totalPaginas, paginaAtual + 2);
+    
+    if (inicioPagina > 1) {
+        html += `<button class="btn btn-secondary" onclick="irParaPagina(1)">1</button>`;
+        if (inicioPagina > 2) {
+            html += `<span class="paginacao-ellipsis">...</span>`;
+        }
+    }
+    
+    for (let i = inicioPagina; i <= fimPagina; i++) {
+        html += `
+            <button class="btn ${i === paginaAtual ? 'btn-primary' : 'btn-secondary'}" onclick="irParaPagina(${i})">
+                ${i}
+            </button>
+        `;
+    }
+    
+    if (fimPagina < totalPaginas) {
+        if (fimPagina < totalPaginas - 1) {
+            html += `<span class="paginacao-ellipsis">...</span>`;
+        }
+        html += `<button class="btn btn-secondary" onclick="irParaPagina(${totalPaginas})">${totalPaginas}</button>`;
+    }
+    
+    html += `
+            </div>
+            <button class="btn btn-secondary" onclick="irParaPagina(${paginaAtual + 1})" ${paginaAtual === totalPaginas ? 'disabled' : ''}>
+                Próxima →
+            </button>
+        </div>
+    `;
+    
+    paginacaoContainer.innerHTML = html;
+}
+
+// Ir para página específica
+function irParaPagina(pagina) {
+    if (pagina < 1) return;
+    const totalPaginas = Math.ceil(produtosFiltrados.length / produtosPorPagina);
+    if (pagina > totalPaginas) return;
+    
+    paginaAtual = pagina;
+    ordenarProdutos();
+    
+    // Scroll para o topo
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Carregar imagens lazy quando visíveis
+function carregarImagensLazy() {
+    const imagens = document.querySelectorAll('.lazy-load[data-src]');
+    
+    if ('IntersectionObserver' in window) {
+        const imageObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    img.src = img.dataset.src;
+                    img.classList.remove('lazy-load');
+                    img.removeAttribute('data-src');
+                    observer.unobserve(img);
+                }
+            });
+        });
+        
+        imagens.forEach(img => imageObserver.observe(img));
+    } else {
+        // Fallback para navegadores antigos
+        imagens.forEach(img => {
+            img.src = img.dataset.src;
+            img.classList.remove('lazy-load');
+            img.removeAttribute('data-src');
+        });
+    }
 }
 
 // Calcular quantidade total automaticamente

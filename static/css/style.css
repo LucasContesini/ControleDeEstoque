@@ -121,6 +121,111 @@ header .btn-primary {
     display: flex;
     gap: 15px;
     align-items: center;
+    margin-bottom: 15px;
+}
+
+.filtros-avancados {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    padding-top: 15px;
+    border-top: 1px solid #e0e0e0;
+    flex-wrap: wrap;
+}
+
+.filtro-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.filtro-checkbox input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.filtro-checkbox span {
+    font-size: 0.95rem;
+    color: #333;
+}
+
+.select-filtro {
+    padding: 10px 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    background: white;
+    color: #333;
+    cursor: pointer;
+    transition: border-color 0.3s;
+    min-width: 200px;
+    font-family: inherit;
+}
+
+.select-filtro:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+/* Paginação */
+.paginacao-container {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin: 30px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.paginacao-info {
+    color: #666;
+    font-size: 0.95rem;
+}
+
+.paginacao-controles {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.paginacao-numeros {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+
+.paginacao-ellipsis {
+    padding: 0 5px;
+    color: #999;
+}
+
+.paginacao-controles .btn {
+    min-width: 40px;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+}
+
+.paginacao-controles .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Lazy loading de imagens */
+.produto-imagem.lazy-load {
+    opacity: 0.5;
+    transition: opacity 0.3s;
+}
+
+.produto-imagem.lazy-load.loaded {
+    opacity: 1;
 }
 
 #busca {

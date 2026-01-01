@@ -87,9 +87,15 @@ def upload_via_rest_api(file, filename):
     url_base = SUPABASE_URL.rstrip('/')
     upload_url = f"{url_base}/storage/v1/object/{BUCKET_NAME}/{filename}"
     
-    # Headers com a service key
+    # Verificar se a chave é JWT (começa com eyJ) ou nova chave (sb_secret_)
+    # A API REST de Storage requer chaves JWT tradicionais
+    service_key = SUPABASE_SERVICE_KEY
+    if service_key.startswith('sb_secret_'):
+        raise Exception("A API REST do Supabase Storage requer chaves JWT tradicionais (que começam com 'eyJ...'), não as novas chaves 'sb_secret_'. Obtenha a service_role key JWT em: Supabase Dashboard → Settings → API → service_role key")
+    
+    # Headers com a service key (deve ser JWT)
     headers = {
-        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+        "Authorization": f"Bearer {service_key}",
         "Content-Type": content_type,
         "x-upsert": "true"  # Permite sobrescrever arquivo existente
     }

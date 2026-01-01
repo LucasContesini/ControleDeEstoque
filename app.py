@@ -126,14 +126,17 @@ def handle_exception(e):
     raise
 
 # Adicionar handler para erros do Werkzeug (erros HTTP)
-from werkzeug.exceptions import HTTPException
-
-@app.errorhandler(HTTPException)
-def handle_http_exception(e):
-    """Garante que erros HTTP retornem JSON para rotas de API"""
-    if hasattr(request, 'path') and request.path.startswith('/api/'):
-        return jsonify({'erro': e.description or str(e)}), e.code
-    return e
+try:
+    from werkzeug.exceptions import HTTPException
+    
+    @app.errorhandler(HTTPException)
+    def handle_http_exception(e):
+        """Garante que erros HTTP retornem JSON para rotas de API"""
+        if hasattr(request, 'path') and request.path.startswith('/api/'):
+            return jsonify({'erro': e.description or str(e)}), e.code
+        return e
+except ImportError:
+    pass
 
 @app.route('/')
 def index():

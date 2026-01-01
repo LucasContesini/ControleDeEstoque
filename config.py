@@ -13,8 +13,10 @@ import os
 SUPABASE_URL = 'https://htrghiefnoaytjmcdbuk.supabase.co'
 
 # Configurações do banco de dados PostgreSQL
+# IMPORTANTE: Vercel é IPv4-only, então use Session Pooler ou Transaction Pooler
+# do Supabase, não a Direct Connection (porta 5432)
 DB_HOST = 'db.htrghiefnoaytjmcdbuk.supabase.co'
-DB_PORT = '6543'  # Porta de connection pooling (mais confiável no Vercel)
+DB_PORT = '6543'  # Porta do Transaction Pooler (compatível com IPv4-only como Vercel)
 DB_NAME = 'postgres'  # Nome padrão do banco no Supabase
 DB_USER = 'postgres'  # Usuário padrão do Supabase
 

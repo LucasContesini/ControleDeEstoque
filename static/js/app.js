@@ -227,8 +227,13 @@ function renderizarProdutos(listaProdutos) {
         // Usar placeholder padrão se não tiver imagem
         const imagemFinal = produto.imagem ? imagemSrc : IMAGEM_PLACEHOLDER;
         
+        // Verificar se estoque está baixo (quantidade = 0)
+        const estoqueBaixo = (produto.quantidade || 0) === 0;
+        const badgeEstoqueBaixo = estoqueBaixo ? '<span class="badge-estoque-baixo">⚠️ Estoque Baixo</span>' : '';
+        
         return `
-        <div class="produto-card">
+        <div class="produto-card ${estoqueBaixo ? 'estoque-baixo' : ''}">
+            ${badgeEstoqueBaixo}
             <img data-src="${imagemFinal}" 
                  src="${IMAGEM_PLACEHOLDER}" 
                  alt="${produto.titulo}" 
@@ -247,10 +252,11 @@ function renderizarProdutos(listaProdutos) {
             ${renderizarEspecificacoes(produto.especificacoes)}
             <div class="produto-acoes">
                 <button class="btn btn-success" onclick="editarProduto(${produto.id})">Editar</button>
+                <button class="btn btn-secondary" onclick="duplicarProduto(${produto.id})" title="Duplicar produto">📋 Duplicar</button>
                 <button class="btn btn-danger" onclick="deletarProduto(${produto.id})">Excluir</button>
             </div>
         </div>
-    `;
+        `;
     }).join('');
 }
 

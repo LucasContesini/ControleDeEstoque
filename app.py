@@ -17,23 +17,19 @@ deletar_imagem_cloud = None
 criar_bucket_se_nao_existir = None
 
 # Tentar usar API REST primeiro (mais confiável)
+# IMPORTANTE: Não inicializar storage na importação para evitar erros no Vercel
 try:
     from storage import usar_storage_cloud, upload_imagem_cloud, deletar_imagem_cloud, criar_bucket_se_nao_existir
-    if usar_storage_cloud():
-        STORAGE_CLOUD_DISPONIVEL = True
-        USAR_S3 = False
-        print("✅ Usando Supabase Storage via API REST")
+    # Não chamar usar_storage_cloud() aqui - será chamado lazy quando necessário
+    # Apenas importar as funções
 except (ImportError, Exception) as e:
     # Se API REST não funcionar, tentar S3 como fallback
     try:
         from storage_s3 import usar_storage_s3, upload_imagem_s3, deletar_imagem_s3
-        if usar_storage_s3():
-            STORAGE_CLOUD_DISPONIVEL = True
-            USAR_S3 = True
-            upload_imagem_cloud = upload_imagem_s3
-            deletar_imagem_cloud = deletar_imagem_s3
-            criar_bucket_se_nao_existir = lambda: None  # Bucket já existe
-            print("✅ Usando Supabase Storage via S3 (fallback)")
+        upload_imagem_cloud = upload_imagem_s3
+        deletar_imagem_cloud = deletar_imagem_s3
+        criar_bucket_se_nao_existir = lambda: None  # Bucket já existe
+        # Não chamar usar_storage_s3() aqui - será chamado lazy quando necessário
     except (ImportError, Exception):
         pass
 
@@ -75,7 +71,24 @@ _storage_initialized = False
 
 def ensure_storage_initialized():
     """Garante que o Supabase Storage está inicializado"""
-    global _storage_initialized
+    global _storage_initialized, STORAGE_CLOUD_DISPONIVEL, USAR_S3
+    
+    # Verificar se storage está disponível (lazy check)
+    if not _storage_initialized:
+        try:
+            # Tentar verificar se storage está disponível
+            if 'usar_storage_cloud' in globals() and callable(usar_storage_cloud):
+                if usar_storage_cloud():
+                    STORAGE_CLOUD_DISPONIVEL = True
+                    USAR_S3 = False
+            elif 'usar_storage_s3' in globals() and callable(usar_storage_s3):
+                if usar_storage_s3():
+                    STORAGE_CLOUD_DISPONIVEL = True
+                    USAR_S3 = True
+        except Exception as e:
+            print(f"⚠️  Erro ao verificar storage: {e}")
+            STORAGE_CLOUD_DISPONIVEL = False
+    
     if not _storage_initialized and STORAGE_CLOUD_DISPONIVEL:
         try:
             if criar_bucket_se_nao_existir and callable(criar_bucket_se_nao_existir):

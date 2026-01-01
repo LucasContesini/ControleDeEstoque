@@ -329,6 +329,10 @@ header .btn-primary {
     white-space: nowrap;
     transform-origin: center;
     line-height: 1.3;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .produto-card:hover {

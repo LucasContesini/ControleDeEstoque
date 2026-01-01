@@ -272,21 +272,32 @@ function renderizarProdutos(listaProdutos) {
         // Detectar se a imagem é URL completa (Supabase) ou caminho local
         let imagemSrc = '';
         if (produto.imagem) {
+            const img = produto.imagem.trim();
+            
             // Se começa com http, é URL completa
-            if (produto.imagem.startsWith('http://') || produto.imagem.startsWith('https://')) {
-                imagemSrc = produto.imagem; // URL completa do Supabase
+            if (img.startsWith('http://') || img.startsWith('https://')) {
+                imagemSrc = img; // URL completa do Supabase
             } 
-            // Se contém 'supabase.co' ou 'storage', é URL do Supabase
-            else if (produto.imagem.includes('supabase.co') || produto.imagem.includes('storage')) {
-                imagemSrc = produto.imagem;
+            // Se contém 'supabase.co' ou 'storage', é URL do Supabase (mesmo sem http)
+            else if (img.includes('supabase.co') || img.includes('storage')) {
+                imagemSrc = img.startsWith('http') ? img : `https://${img}`;
             }
-            // Se não começa com / e não é URL, pode ser nome de arquivo local
-            else if (!produto.imagem.startsWith('/') && !produto.imagem.includes('T') || produto.imagem.includes('.')) {
-                imagemSrc = `/static/uploads/${produto.imagem}`; // Caminho local
+            // Se parece ser uma data/timestamp ISO (contém T e formato de data), usar placeholder
+            else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(img)) {
+                // Formato de data ISO, usar placeholder
+                imagemSrc = IMAGEM_PLACEHOLDER;
             }
-            // Caso contrário, tratar como URL ou usar placeholder
+            // Se não começa com / e tem extensão de imagem, pode ser nome de arquivo local
+            else if (!img.startsWith('/') && /\.(jpg|jpeg|png|gif|webp)$/i.test(img)) {
+                imagemSrc = `/static/uploads/${img}`; // Caminho local
+            }
+            // Se está vazio ou muito curto, usar placeholder
+            else if (!img || img.length < 3) {
+                imagemSrc = IMAGEM_PLACEHOLDER;
+            }
+            // Caso contrário, tentar como caminho local (mas provavelmente vai falhar)
             else {
-                imagemSrc = produto.imagem; // Tentar usar como está
+                imagemSrc = IMAGEM_PLACEHOLDER; // Usar placeholder para evitar 404
             }
         }
         

@@ -151,10 +151,33 @@ def get_db():
     if DATABASE_TYPE == 'postgresql':
         import socket
         
-        # Tentar múltiplas abordagens
-        attempts = []
+        # No Vercel, sempre tentar IPv4 primeiro para evitar problemas com IPv6
+        if IS_VERCEL and isinstance(DATABASE_CONFIG, dict):
+            host = DATABASE_CONFIG.get('host', '')
+            if host and 'supabase.co' in host:
+                try:
+                    # Resolver IPv4 antes de tentar conectar
+                    ipv4 = socket.gethostbyname(host)
+                    config_ipv4 = dict(DATABASE_CONFIG)
+                    config_ipv4['host'] = ipv4
+                    if 'sslmode' not in config_ipv4:
+                        config_ipv4['sslmode'] = 'require'
+                    if 'connect_timeout' not in config_ipv4:
+                        config_ipv4['connect_timeout'] = 10
+                    
+                    # Tentar conectar com IPv4 primeiro
+                    try:
+                        conn = psycopg2.connect(**config_ipv4)
+                        return conn
+                    except psycopg2.OperationalError:
+                        # Se IPv4 falhar, tentar com hostname mesmo
+                        pass
+                except socket.gaierror:
+                    # Se não conseguir resolver IPv4, continuar com hostname
+                    pass
         
-        # Abordagem 1: Tentar conexão normal
+        # Tentar conexão normal (ou se não for Vercel)
+        attempts = []
         try:
             if isinstance(DATABASE_CONFIG, str):
                 conn = psycopg2.connect(DATABASE_CONFIG, connect_timeout=10)
@@ -190,35 +213,18 @@ def get_db():
                             return conn
                 except Exception as e2:
                     attempts.append(f"Tentativa 2 (IPv4 direto): {str(e2)[:100]}")
-                
-                # Abordagem 3: Tentar com porta 6543 (pooling) se estiver usando 5432
-                try:
-                    if isinstance(DATABASE_CONFIG, dict):
-                        port = DATABASE_CONFIG.get('port', '5432')
-                        if port == '5432' or port == 5432:
-                            config_pooling = dict(DATABASE_CONFIG)
-                            config_pooling['port'] = '6543'
-                            if 'sslmode' not in config_pooling:
-                                config_pooling['sslmode'] = 'require'
-                            if 'connect_timeout' not in config_pooling:
-                                config_pooling['connect_timeout'] = 10
-                            
-                            conn = psycopg2.connect(**config_pooling)
-                            return conn
-                except Exception as e3:
-                    attempts.append(f"Tentativa 3 (porta 6543): {str(e3)[:100]}")
             
             # Se todas as tentativas falharam, retornar erro detalhado
             current_port = DATABASE_CONFIG.get('port', '?') if isinstance(DATABASE_CONFIG, dict) else '?'
             
             suggestion = ""
-            if current_port != '6543' and IS_VERCEL:
+            if IS_VERCEL:
                 suggestion = (
-                    f"\n\n💡 SOLUÇÃO: Configure no Vercel:\n"
-                    f"DB_PORT=6543\n"
-                    f"USE_CONNECTION_POOLING=true\n\n"
-                    f"Ou use DATABASE_URL com porta 6543:\n"
-                    f"DATABASE_URL=postgresql://postgres:[PASSWORD]@db.xxxxx.supabase.co:6543/postgres?sslmode=require"
+                    f"\n\n💡 O Vercel pode ter problemas com IPv6.\n"
+                    f"O código já tenta IPv4 automaticamente, mas se o problema persistir:\n"
+                    f"1. Verifique se o Supabase permite conexões externas\n"
+                    f"2. Tente usar DATABASE_URL com IPv4 resolvido manualmente\n"
+                    f"3. Verifique os logs do Vercel para mais detalhes"
                 )
             
             raise Exception(

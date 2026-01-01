@@ -17,19 +17,23 @@ deletar_imagem_cloud = None
 criar_bucket_se_nao_existir = None
 
 # Tentar usar API REST primeiro (mais confiável)
-# IMPORTANTE: Não inicializar storage na importação para evitar erros no Vercel
 try:
     from storage import usar_storage_cloud, upload_imagem_cloud, deletar_imagem_cloud, criar_bucket_se_nao_existir
-    # Não chamar usar_storage_cloud() aqui - será chamado lazy quando necessário
-    # Apenas importar as funções
+    if usar_storage_cloud():
+        STORAGE_CLOUD_DISPONIVEL = True
+        USAR_S3 = False
+        print("✅ Usando Supabase Storage via API REST")
 except (ImportError, Exception) as e:
     # Se API REST não funcionar, tentar S3 como fallback
     try:
         from storage_s3 import usar_storage_s3, upload_imagem_s3, deletar_imagem_s3
-        upload_imagem_cloud = upload_imagem_s3
-        deletar_imagem_cloud = deletar_imagem_s3
-        criar_bucket_se_nao_existir = lambda: None  # Bucket já existe
-        # Não chamar usar_storage_s3() aqui - será chamado lazy quando necessário
+        if usar_storage_s3():
+            STORAGE_CLOUD_DISPONIVEL = True
+            USAR_S3 = True
+            upload_imagem_cloud = upload_imagem_s3
+            deletar_imagem_cloud = deletar_imagem_s3
+            criar_bucket_se_nao_existir = lambda: None  # Bucket já existe
+            print("✅ Usando Supabase Storage via S3 (fallback)")
     except (ImportError, Exception):
         pass
 
@@ -40,31 +44,6 @@ app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
 # Configurar Flask para retornar JSON em caso de erro
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
-
-# Middleware para garantir que todas as rotas /api/* retornem JSON
-@app.before_request
-def before_request():
-    """Garante que rotas de API sempre retornem JSON"""
-    if request.path.startswith('/api/'):
-        # Forçar content-type JSON para rotas de API
-        pass  # O jsonify já faz isso, mas podemos adicionar headers se necessário
-
-@app.after_request
-def after_request(response):
-    """Garante que respostas de API sempre sejam JSON"""
-    if request.path.startswith('/api/'):
-        # Se a resposta não for JSON e tiver erro, converter para JSON
-        if response.status_code >= 400 and response.content_type != 'application/json':
-            try:
-                # Tentar parsear como HTML e converter para JSON
-                if response.data and b'<html' in response.data:
-                    return jsonify({'erro': 'Erro no servidor'}), response.status_code
-            except:
-                pass
-        # Garantir que o content-type seja JSON
-        if response.content_type != 'application/json':
-            response.content_type = 'application/json'
-    return response
 
 # Criar diretório de uploads se não existir (fallback para armazenamento local)
 # No Vercel, não podemos criar diretórios, então apenas tenta
@@ -96,24 +75,7 @@ _storage_initialized = False
 
 def ensure_storage_initialized():
     """Garante que o Supabase Storage está inicializado"""
-    global _storage_initialized, STORAGE_CLOUD_DISPONIVEL, USAR_S3
-    
-    # Verificar se storage está disponível (lazy check)
-    if not _storage_initialized:
-        try:
-            # Tentar verificar se storage está disponível
-            if 'usar_storage_cloud' in globals() and callable(usar_storage_cloud):
-                if usar_storage_cloud():
-                    STORAGE_CLOUD_DISPONIVEL = True
-                    USAR_S3 = False
-            elif 'usar_storage_s3' in globals() and callable(usar_storage_s3):
-                if usar_storage_s3():
-                    STORAGE_CLOUD_DISPONIVEL = True
-                    USAR_S3 = True
-        except Exception as e:
-            print(f"⚠️  Erro ao verificar storage: {e}")
-            STORAGE_CLOUD_DISPONIVEL = False
-    
+    global _storage_initialized
     if not _storage_initialized and STORAGE_CLOUD_DISPONIVEL:
         try:
             if criar_bucket_se_nao_existir and callable(criar_bucket_se_nao_existir):
@@ -157,24 +119,10 @@ def handle_exception(e):
     import traceback
     traceback.print_exc()
     # Se for uma rota de API, retornar JSON
-    if hasattr(request, 'path') and request.path.startswith('/api/'):
-        error_msg = str(e)
-        return jsonify({'erro': f'Erro no servidor: {error_msg}'}), 500
+    if request.path.startswith('/api/'):
+        return jsonify({'erro': str(e)}), 500
     # Caso contrário, deixar o Flask tratar normalmente
     raise
-
-# Adicionar handler para erros do Werkzeug (erros HTTP)
-try:
-    from werkzeug.exceptions import HTTPException
-    
-    @app.errorhandler(HTTPException)
-    def handle_http_exception(e):
-        """Garante que erros HTTP retornem JSON para rotas de API"""
-        if hasattr(request, 'path') and request.path.startswith('/api/'):
-            return jsonify({'erro': e.description or str(e)}), e.code
-        return e
-except ImportError:
-    pass
 
 @app.route('/')
 def index():
@@ -186,21 +134,15 @@ def index():
 @app.route('/api/produtos', methods=['GET'])
 def listar_produtos():
     """Lista todos os produtos"""
-    try:
-        ensure_db_initialized()
-        conn = get_db()
-        cursor = get_cursor(conn)
-        cursor.execute('SELECT * FROM produtos ORDER BY data_atualizacao DESC')
-        produtos = cursor.fetchall()
-        cursor.close()
-        conn.close()
-        
-        return jsonify([produto_para_dict(p) for p in produtos])
-    except Exception as e:
-        import traceback
-        error_msg = str(e)
-        traceback.print_exc()
-        return jsonify({'erro': f'Erro ao carregar produtos: {error_msg}'}), 500
+    ensure_db_initialized()
+    conn = get_db()
+    cursor = get_cursor(conn)
+    cursor.execute('SELECT * FROM produtos ORDER BY data_atualizacao DESC')
+    produtos = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    return jsonify([produto_para_dict(p) for p in produtos])
 
 @app.route('/api/produtos', methods=['POST'])
 def criar_produto():

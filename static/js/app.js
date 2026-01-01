@@ -32,8 +32,51 @@ let atualizando = false;
 let mouseStartY = 0;
 let mouseDown = false;
 
+// Função para verificar configuração do Storage
+async function verificarConfiguracaoStorage() {
+    try {
+        const response = await fetch('/api/debug/storage');
+        const data = await response.json();
+        
+        console.log('🔍 Configuração do Storage:', data);
+        
+        // Verificar se há problemas
+        if (!data.storage_cloud_disponivel) {
+            console.warn('⚠️ Storage em nuvem não disponível');
+            if (data.env_vars) {
+                const faltando = Object.entries(data.env_vars)
+                    .filter(([key, value]) => value === '❌')
+                    .map(([key]) => key);
+                if (faltando.length > 0) {
+                    console.error('❌ Variáveis de ambiente faltando:', faltando.join(', '));
+                }
+            }
+        } else {
+            console.log('✅ Storage em nuvem configurado corretamente');
+        }
+        
+        // Mostrar informações no console
+        if (data.config) {
+            console.log('📋 Configuração:', {
+                url: data.config.supabase_url,
+                key: data.config.supabase_key,
+                service_key: data.config.supabase_service_key,
+                bucket: data.config.bucket_name
+            });
+        }
+        
+        return data;
+    } catch (error) {
+        console.error('❌ Erro ao verificar configuração do Storage:', error);
+        return null;
+    }
+}
+
 // Carregar produtos ao iniciar
 document.addEventListener('DOMContentLoaded', () => {
+    // Verificar configuração do Storage primeiro
+    verificarConfiguracaoStorage();
+    
     carregarProdutos();
     // Configurar campos de quantidade quando a página carregar
     setTimeout(() => configurarCamposQuantidade(), 100);

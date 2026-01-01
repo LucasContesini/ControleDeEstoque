@@ -71,9 +71,33 @@ def upload_imagem_cloud(file, filename):
     Retorna a URL pública da imagem
     """
     try:
-        # Sempre tentar biblioteca Supabase primeiro (funciona com chaves sb_* e JWT)
+        # Se a chave for sb_secret_, tentar API REST primeiro (mais confiável)
+        if SUPABASE_URL and SUPABASE_SERVICE_KEY and SUPABASE_SERVICE_KEY.startswith('sb_secret_'):
+            try:
+                return upload_via_rest_api(file, filename)
+            except Exception as rest_error:
+                # Se API REST falhar, tentar biblioteca como fallback
+                if SUPABASE_LIB_AVAILABLE:
+                    try:
+                        return upload_via_library(file, filename)
+                    except:
+                        raise rest_error
+                else:
+                    raise rest_error
+        
+        # Para chaves JWT (eyJ...), tentar biblioteca primeiro
         if SUPABASE_LIB_AVAILABLE and SUPABASE_URL and SUPABASE_SERVICE_KEY:
-            return upload_via_library(file, filename)
+            try:
+                return upload_via_library(file, filename)
+            except Exception as lib_error:
+                # Se biblioteca falhar e for JWT, tentar API REST como fallback
+                if SUPABASE_SERVICE_KEY.startswith('eyJ'):
+                    try:
+                        return upload_via_rest_api(file, filename)
+                    except:
+                        raise lib_error
+                else:
+                    raise lib_error
         
         # Se não tiver biblioteca, tentar API REST (só funciona com JWT)
         if SUPABASE_URL and SUPABASE_SERVICE_KEY:

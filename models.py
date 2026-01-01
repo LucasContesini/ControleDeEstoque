@@ -185,16 +185,16 @@ def init_db():
 def get_db():
     """Retorna uma conexão com o banco de dados"""
     if DATABASE_TYPE == 'postgresql':
+        import socket
+        
+        # Tentar múltiplas abordagens
+        attempts = []
+        
+        # Abordagem 1: Tentar conexão normal
         try:
-            # Se DATABASE_CONFIG é string (connection string), usar diretamente
             if isinstance(DATABASE_CONFIG, str):
-                # Garantir que SSL está configurado na connection string
-                conn = psycopg2.connect(
-                    DATABASE_CONFIG,
-                    connect_timeout=10
-                )
+                conn = psycopg2.connect(DATABASE_CONFIG, connect_timeout=10)
             else:
-                # Garantir SSL e timeout quando usar dict
                 config = dict(DATABASE_CONFIG)
                 if 'sslmode' not in config:
                     config['sslmode'] = 'require'
@@ -203,33 +203,73 @@ def get_db():
                 conn = psycopg2.connect(**config)
             return conn
         except psycopg2.OperationalError as e:
-            # Melhorar mensagem de erro com informações úteis
             error_msg = str(e)
-            if 'Cannot assign requested address' in error_msg or 'Network is unreachable' in error_msg:
-                # Tentar connection pooling como fallback se não estiver usando
-                USE_POOLING = os.getenv('USE_CONNECTION_POOLING', 'false').lower() == 'true'
-                if not USE_POOLING:
-                    suggestion = (
-                        f"\n\n💡 Dica: Tente usar Connection Pooling do Supabase (porta 6543). "
-                        f"Adicione no Vercel:\n"
-                        f"USE_CONNECTION_POOLING=true\n"
-                        f"DB_PORT=6543\n\n"
-                        f"Ou use DATABASE_URL com porta 6543:\n"
-                        f"DATABASE_URL=postgresql://postgres:[PASSWORD]@db.xxxxx.supabase.co:6543/postgres?sslmode=require"
-                    )
-                else:
-                    suggestion = ""
+            attempts.append(f"Tentativa 1 (normal): {error_msg[:100]}")
+            
+            # Se erro for IPv6 ou "Cannot assign requested address", tentar forçar IPv4
+            if 'Cannot assign requested address' in error_msg or '2600:' in error_msg or 'Network is unreachable' in error_msg:
+                # Abordagem 2: Tentar resolver IPv4 e conectar diretamente
+                try:
+                    if isinstance(DATABASE_CONFIG, dict):
+                        host = DATABASE_CONFIG.get('host', '')
+                        if host and 'supabase.co' in host:
+                            # Resolver IPv4
+                            ipv4 = socket.gethostbyname(host)
+                            config_ipv4 = dict(DATABASE_CONFIG)
+                            config_ipv4['host'] = ipv4
+                            if 'sslmode' not in config_ipv4:
+                                config_ipv4['sslmode'] = 'require'
+                            if 'connect_timeout' not in config_ipv4:
+                                config_ipv4['connect_timeout'] = 10
+                            
+                            conn = psycopg2.connect(**config_ipv4)
+                            return conn
+                except Exception as e2:
+                    attempts.append(f"Tentativa 2 (IPv4 direto): {str(e2)[:100]}")
                 
-                raise Exception(
-                    f"Erro de conexão de rede com o banco de dados. "
-                    f"Verifique:\n"
-                    f"1. Se o Supabase permite conexões externas (Settings → Database → Network Restrictions)\n"
-                    f"2. Se as variáveis de ambiente estão configuradas corretamente no Vercel\n"
-                    f"3. Se o host/porta estão corretos\n"
-                    f"4. Tente usar Connection Pooling (porta 6543) em vez de conexão direta (porta 5432)\n"
-                    f"Erro original: {error_msg}{suggestion}"
+                # Abordagem 3: Tentar com porta 6543 (pooling) se estiver usando 5432
+                try:
+                    if isinstance(DATABASE_CONFIG, dict):
+                        port = DATABASE_CONFIG.get('port', '5432')
+                        if port == '5432' or port == 5432:
+                            config_pooling = dict(DATABASE_CONFIG)
+                            config_pooling['port'] = '6543'
+                            if 'sslmode' not in config_pooling:
+                                config_pooling['sslmode'] = 'require'
+                            if 'connect_timeout' not in config_pooling:
+                                config_pooling['connect_timeout'] = 10
+                            
+                            conn = psycopg2.connect(**config_pooling)
+                            return conn
+                except Exception as e3:
+                    attempts.append(f"Tentativa 3 (porta 6543): {str(e3)[:100]}")
+            
+            # Se todas as tentativas falharam, retornar erro detalhado
+            IS_VERCEL = os.getenv('VERCEL', '') != '' or os.getenv('VERCEL_ENV', '') != ''
+            current_port = DATABASE_CONFIG.get('port', '?') if isinstance(DATABASE_CONFIG, dict) else '?'
+            
+            suggestion = ""
+            if current_port != '6543' and IS_VERCEL:
+                suggestion = (
+                    f"\n\n💡 SOLUÇÃO: Configure no Vercel:\n"
+                    f"DB_PORT=6543\n"
+                    f"USE_CONNECTION_POOLING=true\n\n"
+                    f"Ou use DATABASE_URL com porta 6543:\n"
+                    f"DATABASE_URL=postgresql://postgres:[PASSWORD]@db.xxxxx.supabase.co:6543/postgres?sslmode=require"
                 )
-            raise Exception(f"Erro ao conectar ao banco de dados: {error_msg}")
+            
+            raise Exception(
+                f"Erro ao conectar ao banco de dados.\n"
+                f"Tentativas realizadas:\n" + "\n".join(f"  - {a}" for a in attempts) + "\n\n"
+                f"Verifique:\n"
+                f"1. Se o Supabase permite conexões externas (Settings → Database → Network Restrictions)\n"
+                f"2. Se as variáveis de ambiente estão configuradas no Vercel\n"
+                f"3. Se está usando porta 6543 (pooling) em vez de 5432 (direto)\n"
+                f"4. Porta atual configurada: {current_port}\n"
+                f"Erro original: {error_msg}{suggestion}"
+            )
+        except Exception as e:
+            raise Exception(f"Erro ao conectar ao banco de dados: {str(e)}")
     else:
         conn = sqlite3.connect(DATABASE)
         conn.row_factory = sqlite3.Row

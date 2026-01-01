@@ -31,9 +31,24 @@ def get_supabase_client(use_service_key=False):
             # Biblioteca Supabase aceita URL com ou sem barra final
             # Funciona com chaves sb_secret_ e JWT (eyJ...)
             try:
+                # Tentar criar cliente - a biblioteca supabase-py deve suportar ambas as chaves
                 _supabase_service_client = create_client(url, SUPABASE_SERVICE_KEY)
             except Exception as e:
-                raise ValueError(f"Erro ao criar cliente Supabase com service key: {str(e)}. Verifique se SUPABASE_URL e SUPABASE_SERVICE_KEY estão corretos.")
+                error_str = str(e)
+                # Se for erro de chave inválida, tentar dar mais contexto
+                if "Invalid API key" in error_str or "invalid" in error_str.lower():
+                    # Verificar se a chave parece válida
+                    if SUPABASE_SERVICE_KEY.startswith('sb_secret_'):
+                        # Chave sb_secret_ - a biblioteca deveria suportar, mas pode haver problema
+                        raise ValueError(f"Erro ao criar cliente Supabase com chave sb_secret_: {error_str}. Verifique se a chave está correta e se a biblioteca supabase está atualizada (pip install --upgrade supabase).")
+                    elif SUPABASE_SERVICE_KEY.startswith('eyJ'):
+                        # Chave JWT - deveria funcionar
+                        raise ValueError(f"Erro ao criar cliente Supabase com chave JWT: {error_str}. Verifique se SUPABASE_URL e SUPABASE_SERVICE_KEY estão corretos.")
+                    else:
+                        # Chave em formato desconhecido
+                        raise ValueError(f"Formato de chave desconhecido. Use chaves sb_secret_ ou JWT (eyJ...). Erro: {error_str}")
+                else:
+                    raise ValueError(f"Erro ao criar cliente Supabase com service key: {error_str}. Verifique se SUPABASE_URL e SUPABASE_SERVICE_KEY estão corretos.")
         return _supabase_service_client
     
     # Cliente normal com anon key

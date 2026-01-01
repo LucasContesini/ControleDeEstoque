@@ -65,3 +65,4 @@ postgresql://postgres:senha@postgres.railway.internal:5432/railway
 
 O código foi atualizado para tentar usar variáveis individuais quando detectar URL interna, mas a melhor solução é usar a URL pública do Railway.
 
+

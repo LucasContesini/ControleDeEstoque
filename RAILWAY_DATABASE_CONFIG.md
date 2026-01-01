@@ -67,3 +67,4 @@ DB_PASSWORD=[valor de PGPASSWORD do banco]
 
 Após configurar, faça um deploy e teste a conexão!
 
+

@@ -87,3 +87,4 @@ pip install -r requirements.txt
 - Execute a inicialização do banco primeiro
 - A aplicação cria a tabela automaticamente na primeira requisição
 
+

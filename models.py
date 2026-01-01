@@ -36,8 +36,13 @@ if DATABASE_TYPE == 'postgresql':
                 # Tentar usar URL interna mesmo (pode funcionar se estiver na mesma rede)
                 DATABASE_CONFIG = DATABASE_URL
         else:
-            # URL externa/pública - usar diretamente
-            DATABASE_CONFIG = DATABASE_URL
+            # URL externa/pública (Supabase, etc.) - garantir SSL
+            # Se não tiver sslmode na URL, adicionar
+            if 'sslmode=' not in DATABASE_URL:
+                separator = '&' if '?' in DATABASE_URL else '?'
+                DATABASE_CONFIG = f"{DATABASE_URL}{separator}sslmode=require"
+            else:
+                DATABASE_CONFIG = DATABASE_URL
     else:
         # Configurações do PostgreSQL via variáveis de ambiente individuais
         DATABASE_CONFIG = {
@@ -59,9 +64,19 @@ def init_db():
     if DATABASE_TYPE == 'postgresql':
         # Se DATABASE_CONFIG é string (connection string), usar diretamente
         if isinstance(DATABASE_CONFIG, str):
-            conn = psycopg2.connect(DATABASE_CONFIG)
+            # Garantir que SSL está configurado na connection string
+            conn = psycopg2.connect(
+                DATABASE_CONFIG,
+                connect_timeout=10
+            )
         else:
-            conn = psycopg2.connect(**DATABASE_CONFIG)
+            # Garantir SSL e timeout quando usar dict
+            config = dict(DATABASE_CONFIG)
+            if 'sslmode' not in config:
+                config['sslmode'] = 'require'
+            if 'connect_timeout' not in config:
+                config['connect_timeout'] = 10
+            conn = psycopg2.connect(**config)
         cursor = conn.cursor()
         
         # Criar tabela se não existir
@@ -153,12 +168,36 @@ def init_db():
 def get_db():
     """Retorna uma conexão com o banco de dados"""
     if DATABASE_TYPE == 'postgresql':
-        # Se DATABASE_CONFIG é string (connection string), usar diretamente
-        if isinstance(DATABASE_CONFIG, str):
-            conn = psycopg2.connect(DATABASE_CONFIG)
-        else:
-            conn = psycopg2.connect(**DATABASE_CONFIG)
-        return conn
+        try:
+            # Se DATABASE_CONFIG é string (connection string), usar diretamente
+            if isinstance(DATABASE_CONFIG, str):
+                # Garantir que SSL está configurado na connection string
+                conn = psycopg2.connect(
+                    DATABASE_CONFIG,
+                    connect_timeout=10
+                )
+            else:
+                # Garantir SSL e timeout quando usar dict
+                config = dict(DATABASE_CONFIG)
+                if 'sslmode' not in config:
+                    config['sslmode'] = 'require'
+                if 'connect_timeout' not in config:
+                    config['connect_timeout'] = 10
+                conn = psycopg2.connect(**config)
+            return conn
+        except psycopg2.OperationalError as e:
+            # Melhorar mensagem de erro com informações úteis
+            error_msg = str(e)
+            if 'Cannot assign requested address' in error_msg or 'Network is unreachable' in error_msg:
+                raise Exception(
+                    f"Erro de conexão de rede com o banco de dados. "
+                    f"Verifique:\n"
+                    f"1. Se o Supabase permite conexões externas (Settings → Database → Network Restrictions)\n"
+                    f"2. Se as variáveis de ambiente estão configuradas corretamente no Vercel\n"
+                    f"3. Se o host/porta estão corretos\n"
+                    f"Erro original: {error_msg}"
+                )
+            raise Exception(f"Erro ao conectar ao banco de dados: {error_msg}")
     else:
         conn = sqlite3.connect(DATABASE)
         conn.row_factory = sqlite3.Row

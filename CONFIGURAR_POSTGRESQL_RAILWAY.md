@@ -122,3 +122,4 @@ Sua aplicação agora usa PostgreSQL do Railway, sem problemas de conectividade!
 
 A URL será algo como: `https://seu-projeto.up.railway.app`
 
+

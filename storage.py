@@ -71,21 +71,18 @@ def upload_imagem_cloud(file, filename):
     Retorna a URL pública da imagem
     """
     try:
-        # Se a chave for sb_secret_, tentar API REST primeiro (mais confiável)
-        if SUPABASE_URL and SUPABASE_SERVICE_KEY and SUPABASE_SERVICE_KEY.startswith('sb_secret_'):
-            try:
-                return upload_via_rest_api(file, filename)
-            except Exception as rest_error:
-                # Se API REST falhar, tentar biblioteca como fallback
-                if SUPABASE_LIB_AVAILABLE:
-                    try:
-                        return upload_via_library(file, filename)
-                    except:
-                        raise rest_error
-                else:
-                    raise rest_error
+        # IMPORTANTE: API REST do Supabase Storage NÃO aceita chaves sb_secret_
+        # Apenas chaves JWT (eyJ...) funcionam com API REST
+        # Para chaves sb_secret_, DEVEMOS usar a biblioteca Supabase
         
-        # Para chaves JWT (eyJ...), tentar biblioteca primeiro
+        # Se a chave for sb_secret_, usar biblioteca (única opção)
+        if SUPABASE_SERVICE_KEY and SUPABASE_SERVICE_KEY.startswith('sb_secret_'):
+            if SUPABASE_LIB_AVAILABLE and SUPABASE_URL:
+                return upload_via_library(file, filename)
+            else:
+                raise Exception("Chaves sb_secret_ requerem a biblioteca Supabase Python. Instale: pip install supabase")
+        
+        # Para chaves JWT (eyJ...), tentar biblioteca primeiro, depois API REST
         if SUPABASE_LIB_AVAILABLE and SUPABASE_URL and SUPABASE_SERVICE_KEY:
             try:
                 return upload_via_library(file, filename)

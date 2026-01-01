@@ -437,19 +437,21 @@ def atualizar_produto(produto_id):
                         except Exception as e:
                             print(f"⚠️  Erro ao deletar imagem antiga do storage: {e}")
                     else:
-                        # Deletar do armazenamento local
-                        try:
-                            # Se for URL completa, extrair apenas o nome do arquivo
-                            nome_arquivo = imagem_antiga
-                            if imagem_antiga.startswith('http'):
-                                nome_arquivo = imagem_antiga.split('/')[-1]
-                            
-                            imagem_path = os.path.join(app.config['UPLOAD_FOLDER'], nome_arquivo)
-                            if os.path.exists(imagem_path):
-                                os.remove(imagem_path)
-                                print(f"✅ Imagem antiga deletada localmente: {nome_arquivo}")
-                        except Exception as e:
-                            print(f"⚠️  Erro ao deletar imagem antiga localmente: {e}")
+                        # Deletar do armazenamento local (apenas se não estiver no Vercel)
+                        from config import IS_VERCEL
+                        if not IS_VERCEL:
+                            try:
+                                # Se for URL completa, extrair apenas o nome do arquivo
+                                nome_arquivo = imagem_antiga
+                                if imagem_antiga.startswith('http'):
+                                    nome_arquivo = imagem_antiga.split('/')[-1]
+                                
+                                imagem_path = os.path.join(app.config['UPLOAD_FOLDER'], nome_arquivo)
+                                if os.path.exists(imagem_path):
+                                    os.remove(imagem_path)
+                                    print(f"✅ Imagem antiga deletada localmente: {nome_arquivo}")
+                            except Exception as e:
+                                print(f"⚠️  Erro ao deletar imagem antiga localmente: {e}")
                 else:
                     print(f"ℹ️  Imagem antiga não deletada: está sendo usada por {total_uso} outro(s) produto(s)")
         
@@ -540,19 +542,21 @@ def deletar_produto(produto_id):
                         except Exception as e:
                             print(f"⚠️  Erro ao deletar imagem do Supabase Storage: {e}")
                     else:
-                        # Deletar do armazenamento local
-                        try:
-                            # Se for URL completa, extrair apenas o nome do arquivo
-                            nome_arquivo = imagem_para_deletar
-                            if imagem_para_deletar.startswith('http'):
-                                nome_arquivo = imagem_para_deletar.split('/')[-1]
-                            
-                            imagem_path = os.path.join(app.config['UPLOAD_FOLDER'], nome_arquivo)
-                            if os.path.exists(imagem_path):
-                                os.remove(imagem_path)
-                                print(f"✅ Imagem deletada localmente: {nome_arquivo}")
-                        except Exception as e:
-                            print(f"⚠️  Erro ao deletar imagem localmente: {e}")
+                        # Deletar do armazenamento local (apenas se não estiver no Vercel)
+                        from config import IS_VERCEL
+                        if not IS_VERCEL:
+                            try:
+                                # Se for URL completa, extrair apenas o nome do arquivo
+                                nome_arquivo = imagem_para_deletar
+                                if imagem_para_deletar.startswith('http'):
+                                    nome_arquivo = imagem_para_deletar.split('/')[-1]
+                                
+                                imagem_path = os.path.join(app.config['UPLOAD_FOLDER'], nome_arquivo)
+                                if os.path.exists(imagem_path):
+                                    os.remove(imagem_path)
+                                    print(f"✅ Imagem deletada localmente: {nome_arquivo}")
+                            except Exception as e:
+                                print(f"⚠️  Erro ao deletar imagem localmente: {e}")
                 else:
                     print(f"ℹ️  Imagem não deletada: está sendo usada por {total_uso} outro(s) produto(s)")
         
@@ -585,6 +589,10 @@ def upload_imagem():
         
         # Tentar usar Supabase Storage se configurado
         ensure_storage_initialized()
+        
+        # No Vercel, só podemos usar Supabase Storage (sistema de arquivos é somente leitura)
+        from config import IS_VERCEL
+        
         if STORAGE_CLOUD_DISPONIVEL and upload_imagem_cloud:
             try:
                 url_imagem = upload_imagem_cloud(file, filename)
@@ -594,14 +602,24 @@ def upload_imagem():
                 })
             except Exception as e:
                 return jsonify({'erro': f'Erro ao fazer upload para nuvem: {str(e)}'}), 500
-        else:
-            # Fallback: armazenamento local
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
+        elif IS_VERCEL:
+            # No Vercel, Supabase Storage é obrigatório
             return jsonify({
-                'imagem': filename,  # Retorna apenas o nome do arquivo
-                'mensagem': 'Imagem enviada com sucesso (armazenamento local)'
-            })
+                'erro': 'Supabase Storage não configurado. Configure SUPABASE_URL, SUPABASE_KEY e SUPABASE_SERVICE_KEY.'
+            }), 500
+        else:
+            # Fallback: armazenamento local (apenas em desenvolvimento)
+            try:
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
+                return jsonify({
+                    'imagem': filename,  # Retorna apenas o nome do arquivo
+                    'mensagem': 'Imagem enviada com sucesso (armazenamento local)'
+                })
+            except (OSError, PermissionError) as e:
+                return jsonify({
+                    'erro': f'Erro ao salvar arquivo localmente: {str(e)}. Configure Supabase Storage para produção.'
+                }), 500
     
     return jsonify({'erro': 'Tipo de arquivo não permitido'}), 400
 

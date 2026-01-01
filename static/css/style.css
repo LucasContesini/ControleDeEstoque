@@ -275,6 +275,7 @@ header .btn-primary {
     margin-bottom: 30px;
     position: relative;
     touch-action: pan-y; /* Permitir scroll vertical, mas detectar pull */
+    overflow: visible; /* Permitir que faixas de estoque baixo não sejam cortadas */
 }
 
 /* Tablet */
@@ -308,24 +309,26 @@ header .btn-primary {
 
 .produto-card.estoque-baixo {
     position: relative;
-    overflow: hidden;
+    overflow: visible;
 }
 
 /* Faixa diagonal de estoque baixo */
 .faixa-estoque-baixo {
     position: absolute;
-    top: 20px;
-    right: -35px;
+    top: 15px;
+    right: -40px;
     background: #dc3545;
     color: white;
-    padding: 8px 50px;
-    font-size: 0.75rem;
+    padding: 10px 60px;
+    font-size: 0.8rem;
     font-weight: 700;
-    letter-spacing: 1px;
+    letter-spacing: 1.5px;
     transform: rotate(45deg);
     z-index: 10;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     text-transform: uppercase;
+    white-space: nowrap;
+    transform-origin: center;
 }
 
 .produto-card:hover {

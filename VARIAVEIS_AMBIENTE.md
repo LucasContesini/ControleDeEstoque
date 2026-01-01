@@ -1,150 +1,104 @@
 # Variáveis de Ambiente - Controle de Estoque
 
-Este documento lista todas as variáveis de ambiente necessárias para configurar o sistema em um provedor de hospedagem.
+## ✅ Simplificado: Apenas 3 Variáveis Necessárias!
 
-## 📋 Variáveis Obrigatórias
+A maioria das configurações está hardcoded no arquivo `config.py`. Você só precisa configurar as **credenciais sensíveis**.
 
-### 🗄️ Banco de Dados (PostgreSQL/Supabase)
-
-| Variável | Descrição | Exemplo | Obrigatória |
-|---------|-----------|---------|-------------|
-| `DATABASE_TYPE` | Tipo de banco: `sqlite` (dev) ou `postgresql` (prod) | `postgresql` | ✅ Sim |
-| `DB_HOST` | Host do banco de dados | `db.xxxxx.supabase.co` | ✅ Sim (se PostgreSQL) |
-| `DB_PORT` | Porta do banco de dados | `5432` | ✅ Sim (se PostgreSQL) |
-| `DB_NAME` | Nome do banco de dados | `postgres` | ✅ Sim (se PostgreSQL) |
-| `DB_USER` | Usuário do banco de dados | `postgres` | ✅ Sim (se PostgreSQL) |
-| `DB_PASSWORD` | Senha do banco de dados | `sua_senha_aqui` | ✅ Sim (se PostgreSQL) |
-
-**Nota:** Se usar SQLite (desenvolvimento), apenas `DATABASE_TYPE=sqlite` é necessário. O arquivo será criado automaticamente.
-
----
-
-### 📦 Storage de Imagens (Supabase Storage)
-
-#### Opção 1: API REST (Recomendado)
+## 📋 Variáveis Obrigatórias (Apenas 3!)
 
 | Variável | Descrição | Onde Obter | Obrigatória |
 |---------|-----------|------------|-------------|
-| `SUPABASE_URL` | URL do projeto Supabase | Settings → API → Project URL | ✅ Sim |
-| `SUPABASE_KEY` | Chave pública (anon key) | Settings → API → anon public key | ✅ Sim |
-| `SUPABASE_SERVICE_KEY` | Chave de serviço (service_role) | Settings → API → service_role key | ✅ Sim |
+| `DB_PASSWORD` | Senha do banco de dados PostgreSQL | Supabase Dashboard → Settings → Database → Database password | ✅ Sim |
+| `SUPABASE_KEY` | Chave pública (anon key) | Supabase Dashboard → Settings → API → anon public key | ✅ Sim |
+| `SUPABASE_SERVICE_KEY` | Chave de serviço (service_role) | Supabase Dashboard → Settings → API → service_role key | ✅ Sim |
 
-**Como obter:**
-1. Acesse seu projeto no Supabase
-2. Vá em **Settings** → **API**
-3. Copie:
-   - **Project URL** → `SUPABASE_URL`
-   - **anon public** → `SUPABASE_KEY`
-   - **service_role** → `SUPABASE_SERVICE_KEY` ⚠️ **MANTENHA SECRETO!**
+## 🔧 Configurações Hardcoded (Não Precisa Configurar)
 
-#### Opção 2: S3 API (Alternativa)
+As seguintes configurações estão no arquivo `config.py` e **não precisam** ser configuradas:
 
-| Variável | Descrição | Onde Obter | Obrigatória |
-|---------|-----------|------------|-------------|
-| `SUPABASE_S3_ENDPOINT` | Endpoint S3 do Supabase | Settings → Storage → S3 Settings | ⚠️ Opcional |
-| `SUPABASE_S3_ACCESS_KEY` | Access Key S3 | Settings → Storage → S3 Settings | ⚠️ Opcional |
-| `SUPABASE_S3_SECRET_KEY` | Secret Key S3 | Settings → Storage → S3 Settings | ⚠️ Opcional |
-| `SUPABASE_S3_REGION` | Região S3 | Geralmente `us-west-2` | ⚠️ Opcional |
+- ✅ `DB_HOST` - `db.htrghiefnoaytjmcdbuk.supabase.co`
+- ✅ `DB_PORT` - `6543` (connection pooling)
+- ✅ `DB_NAME` - `postgres`
+- ✅ `DB_USER` - `postgres`
+- ✅ `SUPABASE_URL` - `https://htrghiefnoaytjmcdbuk.supabase.co`
+- ✅ `BUCKET_NAME` - `Controle de Estoque`
+- ✅ `DATABASE_TYPE` - Detectado automaticamente (postgresql no Vercel, sqlite local)
 
-**Nota:** Use apenas se preferir S3 ao invés da API REST. A API REST é recomendada por ser mais simples.
+## 📝 Como Obter as Credenciais
 
----
+### 1. DB_PASSWORD (Senha do Banco)
 
-## 🔧 Configuração por Provedor
+1. Acesse: https://supabase.com/dashboard
+2. Selecione seu projeto
+3. Vá em **Settings** → **Database**
+4. Role até **Database password**
+5. Se não souber a senha, clique em **Reset database password**
+6. Copie a senha gerada
 
-### Heroku
+### 2. SUPABASE_KEY (Chave Pública)
+
+1. No Supabase Dashboard, vá em **Settings** → **API**
+2. Em **Project API keys**, copie a chave **anon public**
+3. Esta é a chave pública (pode ser exposta no frontend)
+
+### 3. SUPABASE_SERVICE_KEY (Chave Secreta)
+
+1. No mesmo lugar (Settings → API)
+2. Copie a chave **service_role**
+3. ⚠️ **MANTENHA SECRETO!** Esta chave tem permissões administrativas
+
+## 🚀 Configuração no Vercel
+
+No **Vercel Dashboard** → **Settings** → **Environment Variables**, adicione apenas:
+
+```
+DB_PASSWORD=S&mur&i77681271
+SUPABASE_KEY=sb_publishable_gSNmUBC5DQcx-UQKrFeGfw_wlbu27R9
+SUPABASE_SERVICE_KEY=sb_secret_ZjnLl9_3WQzamHBRZHNFhw_J5q2xyhD
+```
+
+**Importante:** 
+- Configure para **todos os ambientes** (Production, Preview, Development)
+- Não precisa configurar as outras variáveis (estão hardcoded)
+
+## 🔄 Opcional: DATABASE_URL
+
+Se preferir usar uma connection string completa em vez de variáveis individuais, você pode adicionar:
+
+```
+DATABASE_URL=postgresql://postgres:S%26mur%26i77681271@db.htrghiefnoaytjmcdbuk.supabase.co:6543/postgres?sslmode=require
+```
+
+**Nota:** Se usar `DATABASE_URL`, ainda precisa de `SUPABASE_KEY` e `SUPABASE_SERVICE_KEY` para o Storage.
+
+## 📋 Checklist de Configuração
+
+- [ ] `DB_PASSWORD` configurada no Vercel
+- [ ] `SUPABASE_KEY` configurada no Vercel
+- [ ] `SUPABASE_SERVICE_KEY` configurada no Vercel
+- [ ] Variáveis configuradas para todos os ambientes (Production, Preview, Development)
+- [ ] Bucket "Controle de Estoque" criado no Supabase Storage (público)
+
+## 🔍 Verificar Configuração
+
+Após configurar, acesse:
+
+```
+https://seu-projeto.vercel.app/api/debug/banco
+```
+
+Isso mostrará se a conexão está funcionando corretamente.
+
+## 💡 Desenvolvimento Local
+
+Para desenvolvimento local (SQLite), não precisa configurar nenhuma variável. O sistema detecta automaticamente e usa SQLite.
+
+Para usar PostgreSQL localmente, adicione no seu `.env` ou `configurar_supabase.sh`:
 
 ```bash
-heroku config:set DATABASE_TYPE=postgresql
-heroku config:set DB_HOST=db.xxxxx.supabase.co
-heroku config:set DB_PORT=5432
-heroku config:set DB_NAME=postgres
-heroku config:set DB_USER=postgres
-heroku config:set DB_PASSWORD=sua_senha
-heroku config:set SUPABASE_URL=https://xxxxx.supabase.co
-heroku config:set SUPABASE_KEY=sua_anon_key
-heroku config:set SUPABASE_SERVICE_KEY=sua_service_key
+export DB_PASSWORD=sua_senha
+export SUPABASE_KEY=sua_anon_key
+export SUPABASE_SERVICE_KEY=sua_service_key
 ```
 
-### Vercel
-
-No dashboard do Vercel, vá em **Settings** → **Environment Variables** e adicione todas as variáveis acima.
-
-⚠️ **Importante:** Adicione as variáveis para todos os ambientes (Production, Preview, Development).
-
----
-
-## 📝 Arquivo .env (Desenvolvimento Local)
-
-Crie um arquivo `.env` na raiz do projeto:
-
-```env
-# Banco de Dados
-DATABASE_TYPE=postgresql
-DB_HOST=db.xxxxx.supabase.co
-DB_PORT=5432
-DB_NAME=postgres
-DB_USER=postgres
-DB_PASSWORD=sua_senha_aqui
-
-# Supabase Storage (API REST - Recomendado)
-SUPABASE_URL=https://xxxxx.supabase.co
-SUPABASE_KEY=sua_anon_key
-SUPABASE_SERVICE_KEY=sua_service_key
-
-# Supabase Storage (S3 - Opcional)
-# SUPABASE_S3_ENDPOINT=https://xxxxx.storage.supabase.co
-# SUPABASE_S3_ACCESS_KEY=sua_access_key
-# SUPABASE_S3_SECRET_KEY=sua_secret_key
-# SUPABASE_S3_REGION=us-west-2
-```
-
-**Importante:** Adicione `.env` ao `.gitignore` para não commitar credenciais!
-
----
-
-## ✅ Checklist de Configuração
-
-Antes de fazer deploy, certifique-se de:
-
-- [ ] Todas as variáveis de banco de dados estão configuradas
-- [ ] `SUPABASE_URL`, `SUPABASE_KEY` e `SUPABASE_SERVICE_KEY` estão configuradas
-- [ ] O bucket "Controle de Estoque" foi criado no Supabase Storage
-- [ ] As políticas de Row Level Security (RLS) estão configuradas no Supabase (se necessário)
-- [ ] O arquivo `.env` está no `.gitignore`
-- [ ] As credenciais não estão hardcoded no código
-
----
-
-## 🔒 Segurança
-
-⚠️ **IMPORTANTE:**
-
-1. **NUNCA** commite credenciais no Git
-2. **NUNCA** compartilhe `SUPABASE_SERVICE_KEY` publicamente
-3. Use variáveis de ambiente sempre
-4. Revise as políticas de RLS no Supabase
-5. Use HTTPS em produção
-
----
-
-## 🧪 Testar Configuração
-
-Após configurar as variáveis, teste a conexão:
-
-```bash
-# Testar banco de dados
-python3 -c "from models import init_db; init_db(); print('✅ Banco OK')"
-
-# Testar storage (se configurado)
-python3 -c "from storage import usar_storage_cloud; print('✅ Storage OK' if usar_storage_cloud() else '❌ Storage não configurado')"
-```
-
----
-
-## 📚 Referências
-
-- [Supabase Documentation](https://supabase.com/docs)
-- [Supabase Storage Guide](https://supabase.com/docs/guides/storage)
-- [PostgreSQL Connection Strings](https://www.postgresql.org/docs/current/libpq-connect.html)
-
+Ou defina `DATABASE_TYPE=postgresql` para forçar PostgreSQL mesmo localmente.

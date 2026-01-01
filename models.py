@@ -1,33 +1,16 @@
 import os
 from datetime import datetime
-
-# Detectar qual banco de dados usar baseado em variável de ambiente
-# Use 'sqlite' para desenvolvimento ou 'postgresql' para produção
-DATABASE_TYPE = os.getenv('DATABASE_TYPE', 'sqlite').lower()
+from config import (
+    DATABASE_TYPE, DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD,
+    IS_VERCEL
+)
 
 if DATABASE_TYPE == 'postgresql':
     import psycopg2
     from psycopg2.extras import RealDictCursor
     
-    # Verificar se há DATABASE_URL (connection string completa)
+    # Verificar se há DATABASE_URL (connection string completa) - opcional
     DATABASE_URL = os.getenv('DATABASE_URL', '')
-    
-    # Detectar se está no Vercel (serverless)
-    IS_VERCEL = os.getenv('VERCEL', '') != '' or os.getenv('VERCEL_ENV', '') != ''
-    
-    # Verificar se deve usar connection pooling (porta 6543)
-    # Connection pooling é mais confiável em ambientes serverless como Vercel
-    # Por padrão, usar pooling no Vercel, a menos que explicitamente desabilitado
-    USE_POOLING_ENV = os.getenv('USE_CONNECTION_POOLING', '').lower()
-    if USE_POOLING_ENV == 'false':
-        USE_POOLING = False
-    elif USE_POOLING_ENV == 'true':
-        USE_POOLING = True
-    else:
-        # Se não especificado, usar pooling no Vercel por padrão
-        USE_POOLING = IS_VERCEL
-    
-    POOLING_PORT = '6543'
     
     if DATABASE_URL:
         # URL externa/pública (Supabase) - garantir SSL
@@ -38,36 +21,17 @@ if DATABASE_TYPE == 'postgresql':
         else:
             DATABASE_CONFIG = DATABASE_URL
         
-        # Se usar pooling, substituir porta 5432 por 6543 na URL
-        if USE_POOLING:
-            # Substituir :5432 por :6543 se existir
-            if ':5432' in DATABASE_CONFIG:
-                DATABASE_CONFIG = DATABASE_CONFIG.replace(':5432', f':{POOLING_PORT}')
-            # Se não tiver porta especificada, adicionar porta de pooling
-            elif ':6543' not in DATABASE_CONFIG and '@' in DATABASE_CONFIG:
-                parts = DATABASE_CONFIG.split('@')
-                if len(parts) == 2:
-                    host_part = parts[1].split('/')[0]
-                    if ':' not in host_part:
-                        # Adicionar porta de pooling
-                        DATABASE_CONFIG = DATABASE_CONFIG.replace(f"@{host_part}", f"@{host_part}:{POOLING_PORT}")
+        # Garantir que está usando porta de pooling (6543)
+        if ':5432' in DATABASE_CONFIG:
+            DATABASE_CONFIG = DATABASE_CONFIG.replace(':5432', ':6543')
     else:
-        # Configurações do PostgreSQL via variáveis de ambiente individuais
-        db_port_env = os.getenv('DB_PORT', '')
-        if db_port_env:
-            db_port = db_port_env
-        elif USE_POOLING:
-            # Se usar pooling e não especificar porta, usar 6543
-            db_port = POOLING_PORT
-        else:
-            db_port = '5432'
-        
+        # Configurações do PostgreSQL usando valores do config.py
         DATABASE_CONFIG = {
-            'host': os.getenv('DB_HOST', 'localhost'),
-            'port': db_port,
-            'database': os.getenv('DB_NAME', 'controle_estoque'),
-            'user': os.getenv('DB_USER', 'postgres'),
-            'password': os.getenv('DB_PASSWORD', ''),
+            'host': DB_HOST,
+            'port': DB_PORT,  # Já vem como '6543' do config.py
+            'database': DB_NAME,
+            'user': DB_USER,
+            'password': DB_PASSWORD,
             'connect_timeout': 10,  # Timeout de conexão de 10 segundos
             'sslmode': 'require'  # Requer SSL para Supabase
         }
@@ -245,7 +209,6 @@ def get_db():
                     attempts.append(f"Tentativa 3 (porta 6543): {str(e3)[:100]}")
             
             # Se todas as tentativas falharam, retornar erro detalhado
-            IS_VERCEL = os.getenv('VERCEL', '') != '' or os.getenv('VERCEL_ENV', '') != ''
             current_port = DATABASE_CONFIG.get('port', '?') if isinstance(DATABASE_CONFIG, dict) else '?'
             
             suggestion = ""

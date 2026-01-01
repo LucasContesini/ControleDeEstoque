@@ -5,12 +5,7 @@ import os
 from supabase import create_client, Client
 from werkzeug.utils import secure_filename
 from datetime import datetime
-
-# Configurações do Supabase
-SUPABASE_URL = os.getenv('SUPABASE_URL', '')
-SUPABASE_KEY = os.getenv('SUPABASE_KEY', '')  # Chave anon (para operações normais)
-SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY', '')  # Chave service_role (para admin)
-BUCKET_NAME = 'Controle de Estoque'
+from config import SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY, BUCKET_NAME
 
 # Cliente Supabase (será inicializado quando necessário)
 _supabase_client: Client = None

@@ -207,14 +207,14 @@ def debug_banco():
     """Rota de debug para verificar conexão e dados do banco"""
     try:
         # Mostrar informações de configuração
-        import os
         from models import DATABASE_CONFIG, DATABASE_TYPE
+        from config import IS_VERCEL, DB_PORT, DB_HOST
         
         config_info = {
             'tipo_banco': DATABASE_TYPE,
-            'is_vercel': os.getenv('VERCEL', '') != '' or os.getenv('VERCEL_ENV', '') != '',
-            'use_pooling': os.getenv('USE_CONNECTION_POOLING', 'auto'),
-            'db_port': os.getenv('DB_PORT', 'não definido'),
+            'is_vercel': IS_VERCEL,
+            'db_host': DB_HOST,
+            'db_port': DB_PORT,
             'tem_database_url': bool(os.getenv('DATABASE_URL', '')),
         }
         

@@ -272,10 +272,21 @@ function renderizarProdutos(listaProdutos) {
         // Detectar se a imagem é URL completa (Supabase) ou caminho local
         let imagemSrc = '';
         if (produto.imagem) {
+            // Se começa com http, é URL completa
             if (produto.imagem.startsWith('http://') || produto.imagem.startsWith('https://')) {
                 imagemSrc = produto.imagem; // URL completa do Supabase
-            } else {
+            } 
+            // Se contém 'supabase.co' ou 'storage', é URL do Supabase
+            else if (produto.imagem.includes('supabase.co') || produto.imagem.includes('storage')) {
+                imagemSrc = produto.imagem;
+            }
+            // Se não começa com / e não é URL, pode ser nome de arquivo local
+            else if (!produto.imagem.startsWith('/') && !produto.imagem.includes('T') || produto.imagem.includes('.')) {
                 imagemSrc = `/static/uploads/${produto.imagem}`; // Caminho local
+            }
+            // Caso contrário, tratar como URL ou usar placeholder
+            else {
+                imagemSrc = produto.imagem; // Tentar usar como está
             }
         }
         

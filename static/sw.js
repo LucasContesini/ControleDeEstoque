@@ -3,9 +3,7 @@ const CACHE_NAME = 'controle-estoque-v1';
 const urlsToCache = [
   '/',
   '/static/css/style.css',
-  '/static/js/app.js',
-  '/static/icons/icon-192.png',
-  '/static/icons/icon-512.png'
+  '/static/js/app.js'
 ];
 
 // Instalar Service Worker
@@ -13,7 +11,14 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        return cache.addAll(urlsToCache);
+        // Tentar adicionar URLs ao cache, ignorar erros
+        return Promise.allSettled(
+          urlsToCache.map(url => cache.add(url).catch(() => {}))
+        );
+      })
+      .then(() => {
+        // Forçar ativação imediata
+        return self.skipWaiting();
       })
   );
 });

@@ -3,6 +3,9 @@ let produtosFiltrados = [];
 let modoEdicao = false;
 let especificacoesCount = 0;
 let ordenacaoAtual = 'recente';
+let abaAtual = 'produtos';
+let vendas = [];
+let observacoesCount = 0;
 
 // Imagem placeholder padrão (caixa de papelão com "Sem Foto")
 const IMAGEM_PLACEHOLDER = `data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y1ZjVmNSIvPgogIDxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDUwLCA0MCkiPgogICAgPHBhdGggZD0iTSAyMCAzMCBMIDYwIDEwIEwgMTAwIDMwIEwgNjAgNTAgWiIgZmlsbD0iIzhCNDUxMyIgc3Ryb2tlPSIjNjU0MzIxIiBzdHJva2Utd2lkdGg9IjEiLz4KICAgIDxwYXRoIGQ9Ik0gMjAgMzAgTCA2MCA1MCBMIDYwIDkwIEwgMjAgNzAgWiIgZmlsbD0iI0EwNTIyRCIgc3Ryb2tlPSIjNjU0MzIxIiBzdHJva2Utd2lkdGg9IjEiLz4KICAgIDxwYXRoIGQ9Ik0gNjAgNTAgTCAxMDAgMzAgTCAxMDAgNzAgTCA2MCA5MCBaIiBmaWxsPSIjQ0Q4NTNGIiBzdHJva2U9IiM2NTQzMjEiIHN0cm9rZS13aWR0aD0iMSIvPgogICAgPGxpbmUgeDE9IjYwIiB5MT0iMTAiIHgyPSI2MCIgeTI9IjkwIiBzdHJva2U9IiM2NTQzMjEiIHN0cm9rZS13aWR0aD0iMS41Ii8+CiAgICA8cmVjdCB4PSIyNSIgeT0iNDUiIHdpZHRoPSIyMCIgaGVpZ2h0PSIxNSIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iMC45IiByeD0iMiIvPgogICAgPGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNzUsIDM1KSI+CiAgICAgIDxlbGxpcHNlIGN4PSIwIiBjeT0iOCIgcng9IjQiIHJ5PSI2IiBmaWxsPSIjMzMzIiBvcGFjaXR5PSIwLjciLz4KICAgICAgPGxpbmUgeDE9Ii0zIiB5MT0iNSIgeDI9IjMiIHkyPSI1IiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iMSIvPgogICAgPC9nPgogICAgPGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoODUsIDUwKSI+CiAgICAgIDxwYXRoIGQ9Ik0gMCAwIEwgNSA1IEwgLTUgNSBaIiBmaWxsPSIjMzMzIiBvcGFjaXR5PSIwLjciLz4KICAgICAgPHBhdGggZD0iTSAwIDUgTCA1IDEwIEwgLTUgMTAgWiIgZmlsbD0iIzMzMyIgb3BhY2l0eT0iMC43Ii8+CiAgICA8L2c+CiAgPC9nPgogIDx0ZXh0IHg9IjUwJSIgeT0iMTYwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5OTk5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtd2VpZ2h0PSI1MDAiPlNlbSBGb3RvPC90ZXh0Pgo8L3N2Zz4=`;
@@ -32,64 +35,20 @@ let atualizando = false;
 let mouseStartY = 0;
 let mouseDown = false;
 
-// Função para verificar configuração do Storage
-async function verificarConfiguracaoStorage() {
-    try {
-        const response = await fetch('/api/debug/storage');
-        const data = await response.json();
-        
-        console.log('🔍 Configuração do Storage:', data);
-        
-        // Verificar se há problemas
-        if (!data.storage_cloud_disponivel) {
-            console.warn('⚠️ Storage em nuvem não disponível');
-            if (data.env_vars) {
-                const faltando = Object.entries(data.env_vars)
-                    .filter(([key, value]) => value === '❌')
-                    .map(([key]) => key);
-                if (faltando.length > 0) {
-                    console.error('❌ Variáveis de ambiente faltando:', faltando.join(', '));
-                }
-            }
-        } else {
-            console.log('✅ Storage em nuvem configurado corretamente');
-        }
-        
-        // Mostrar informações no console
-        if (data.config) {
-            console.log('📋 Configuração:', {
-                url: data.config.supabase_url,
-                key: data.config.supabase_key,
-                service_key: data.config.supabase_service_key,
-                bucket: data.config.bucket_name
-            });
-        }
-        
-        return data;
-    } catch (error) {
-        console.error('❌ Erro ao verificar configuração do Storage:', error);
-        return null;
-    }
-}
-
 // Carregar produtos ao iniciar
 document.addEventListener('DOMContentLoaded', () => {
-    // Verificar configuração do Storage primeiro
-    verificarConfiguracaoStorage();
+    // Configurar data padrão no modal de venda
+    document.getElementById('venda-data').value = new Date().toISOString().split('T')[0];
     
-    carregarProdutos();
+    // Carregar conteúdo da aba ativa
+    if (abaAtual === 'vendas') {
+        carregarVendas();
+    } else {
+        carregarProdutos();
+    }
+    
     // Configurar campos de quantidade quando a página carregar
     setTimeout(() => configurarCamposQuantidade(), 100);
-    
-    // Configurar drag and drop
-    configurarDragAndDrop();
-    
-    // Garantir que o campo de busca está configurado
-    const buscaInput = document.getElementById('busca');
-    if (buscaInput) {
-        buscaInput.addEventListener('input', filtrarProdutos);
-        buscaInput.addEventListener('keyup', filtrarProdutos);
-    }
     
     const produtosContainer = document.getElementById('produtos-container');
     
@@ -195,89 +154,12 @@ document.addEventListener('DOMContentLoaded', () => {
 async function carregarProdutos() {
     try {
         const response = await fetch('/api/produtos');
-        
-        // Verificar se a resposta foi bem-sucedida
-        if (!response.ok) {
-            const errorText = await response.text();
-            let errorMsg = `Erro ${response.status}: ${response.statusText}`;
-            try {
-                const errorJson = JSON.parse(errorText);
-                errorMsg = errorJson.erro || errorMsg;
-            } catch {
-                errorMsg = errorText || errorMsg;
-            }
-            throw new Error(errorMsg);
-        }
-        
         produtos = await response.json();
         produtosFiltrados = [...produtos];
-        paginaAtual = 1; // Resetar para primeira página
-        atualizarCategorias(); // Atualizar lista de categorias
         ordenarProdutos();
-        atualizarEstatisticas(); // Atualizar estatísticas após carregar produtos
-        
-        // Esconder loading inicial após carregar
-        const loadingInicial = document.getElementById('loading-inicial');
-        if (loadingInicial) {
-            loadingInicial.style.display = 'none';
-        }
     } catch (error) {
-        console.error('Erro ao carregar produtos:', error);
-        let errorMsg = error.message;
-        if (error.message === 'Failed to fetch') {
-            errorMsg = 'Não foi possível conectar ao servidor. Verifique se o servidor está rodando.';
-        }
-        mostrarMensagem('Erro ao carregar produtos: ' + errorMsg, 'erro');
-        // Esconder loading mesmo em caso de erro
-        const loadingInicial = document.getElementById('loading-inicial');
-        if (loadingInicial) {
-            loadingInicial.style.display = 'none';
-        }
+        mostrarMensagem('Erro ao carregar produtos: ' + error.message, 'erro');
     }
-}
-
-// Atualizar lista de categorias
-function atualizarCategorias() {
-    const categorias = new Set();
-    produtos.forEach(produto => {
-        if (produto.categoria && produto.categoria.trim()) {
-            categorias.add(produto.categoria.trim());
-        }
-    });
-    
-    const filtroCategoria = document.getElementById('filtro-categoria');
-    const datalistCategorias = document.getElementById('categorias-lista');
-    
-    if (filtroCategoria) {
-        // Limpar opções existentes (exceto "Todas")
-        filtroCategoria.innerHTML = '<option value="">📂 Todas as categorias</option>';
-        categorias.forEach(cat => {
-            const option = document.createElement('option');
-            option.value = cat;
-            option.textContent = cat;
-            filtroCategoria.appendChild(option);
-        });
-    }
-    
-    if (datalistCategorias) {
-        datalistCategorias.innerHTML = '';
-        categorias.forEach(cat => {
-            const option = document.createElement('option');
-            option.value = cat;
-            datalistCategorias.appendChild(option);
-        });
-    }
-}
-
-// Atualizar estatísticas
-function atualizarEstatisticas() {
-    const totalProdutos = produtos.length;
-    const totalEstoque = produtos.reduce((sum, p) => sum + (p.quantidade || 0), 0);
-    const estoqueBaixo = produtos.filter(p => (p.quantidade || 0) === 0).length;
-    
-    document.getElementById('total-produtos').textContent = totalProdutos;
-    document.getElementById('total-estoque').textContent = totalEstoque;
-    document.getElementById('estoque-baixo').textContent = estoqueBaixo;
 }
 
 // Atualizar produtos (com loading overlay)
@@ -302,7 +184,6 @@ async function atualizarProdutos(silencioso = false) {
         document.getElementById('ordenacao').value = ordenacaoAtual;
         ordenarProdutos();
         
-        atualizarEstatisticas(); // Atualizar estatísticas após atualizar produtos
         if (!silencioso) {
             mostrarMensagem('Produtos atualizados!', 'sucesso');
         }
@@ -324,9 +205,7 @@ function renderizarProdutos(listaProdutos) {
     const container = document.getElementById('produtos-container');
     
     if (listaProdutos.length === 0) {
-        const busca = document.getElementById('busca').value.toLowerCase();
-        const mensagem = busca ? 'Nenhum produto encontrado' : 'Nenhum produto cadastrado ainda';
-        container.innerHTML = `<div class="vazio">${mensagem}</div>`;
+        container.innerHTML = '<div class="vazio">Nenhum produto cadastrado ainda</div>';
         return;
     }
     
@@ -334,68 +213,40 @@ function renderizarProdutos(listaProdutos) {
         // Detectar se a imagem é URL completa (Supabase) ou caminho local
         let imagemSrc = '';
         if (produto.imagem) {
-            const img = produto.imagem.trim();
-            
-            // Se começa com http, é URL completa
-            if (img.startsWith('http://') || img.startsWith('https://')) {
-                imagemSrc = img; // URL completa do Supabase
-            } 
-            // Se contém 'supabase.co' ou 'storage', é URL do Supabase (mesmo sem http)
-            else if (img.includes('supabase.co') || img.includes('storage')) {
-                imagemSrc = img.startsWith('http') ? img : `https://${img}`;
-            }
-            // Se parece ser uma data/timestamp ISO (contém T e formato de data), usar placeholder
-            else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(img)) {
-                // Formato de data ISO, usar placeholder
-                imagemSrc = IMAGEM_PLACEHOLDER;
-            }
-            // Se não começa com / e tem extensão de imagem, pode ser nome de arquivo local
-            else if (!img.startsWith('/') && /\.(jpg|jpeg|png|gif|webp)$/i.test(img)) {
-                imagemSrc = `/static/uploads/${img}`; // Caminho local
-            }
-            // Se está vazio ou muito curto, usar placeholder
-            else if (!img || img.length < 3) {
-                imagemSrc = IMAGEM_PLACEHOLDER;
-            }
-            // Caso contrário, tentar como caminho local (mas provavelmente vai falhar)
-            else {
-                imagemSrc = IMAGEM_PLACEHOLDER; // Usar placeholder para evitar 404
+            if (produto.imagem.startsWith('http://') || produto.imagem.startsWith('https://')) {
+                imagemSrc = produto.imagem; // URL completa do Supabase
+            } else {
+                imagemSrc = `/static/uploads/${produto.imagem}`; // Caminho local
             }
         }
         
         // Usar placeholder padrão se não tiver imagem
         const imagemFinal = produto.imagem ? imagemSrc : IMAGEM_PLACEHOLDER;
         
-        // Verificar se estoque está baixo (quantidade = 0)
-        const estoqueBaixo = (produto.quantidade || 0) === 0;
-        const faixaEstoqueBaixo = estoqueBaixo ? '<div class="faixa-estoque-baixo">ESTOQUE BAIXO</div>' : '';
-        const categoriaBadge = produto.categoria ? `<span class="produto-categoria">${produto.categoria}</span>` : '';
+        const valorCompra = produto.valor_compra ? 
+            `💰 Compra: R$ ${parseFloat(produto.valor_compra).toFixed(2).replace('.', ',')}` : 
+            '';
         
         return `
-        <div class="produto-card ${estoqueBaixo ? 'estoque-baixo' : ''}">
-            ${faixaEstoqueBaixo}
+        <div class="produto-card">
             <img src="${imagemFinal}" 
                  alt="${produto.titulo}" 
                  class="produto-imagem"
-                 ${produto.imagem ? 'loading="lazy"' : ''}
                  onerror="this.onerror=null; this.src='${IMAGEM_PLACEHOLDER}';">
             <h3 class="produto-titulo">${produto.titulo}</h3>
-            ${categoriaBadge}
             <p class="produto-descricao">${produto.descricao || 'Sem descrição'}</p>
             <div class="produto-quantidades">
-                <span class="produto-quantidade">Total: ${produto.quantidade}</span>
-                <div class="quantidades-ecommerce-display">
-                    <span class="quantidade-badge ml">🛒 ML: ${produto.quantidade_mercado_livre || 0}</span>
-                    <span class="quantidade-badge shopee">🛍️ Shopee: ${produto.quantidade_shopee || 0}</span>
-                </div>
+                <span class="produto-quantidade">📦 Estoque: ${produto.quantidade || 0}</span>
+                ${valorCompra ? `<div style="margin-top: 8px; color: #28a745; font-weight: 600;">${valorCompra}</div>` : ''}
             </div>
             ${renderizarEspecificacoes(produto.especificacoes)}
             <div class="produto-acoes">
+                <button class="btn btn-primary" onclick="abrirModalVenda(${produto.id}, '${produto.titulo.replace(/'/g, "\\'")}', ${produto.valor_compra || 0}, ${produto.quantidade || 0})" style="background: #28a745;">💰 Venda</button>
                 <button class="btn btn-success" onclick="editarProduto(${produto.id})">Editar</button>
                 <button class="btn btn-danger" onclick="deletarProduto(${produto.id})">Excluir</button>
             </div>
         </div>
-        `;
+    `;
     }).join('');
 }
 
@@ -420,77 +271,17 @@ function renderizarEspecificacoes(especificacoesStr) {
 }
 
 // Filtrar produtos
-// Debounce para busca (aguarda 300ms após parar de digitar)
-let buscaTimeout = null;
-
 function filtrarProdutos() {
-    // Limpar timeout anterior
-    if (buscaTimeout) {
-        clearTimeout(buscaTimeout);
+    const busca = document.getElementById('busca').value.toLowerCase();
+    if (busca === '') {
+        produtosFiltrados = [...produtos];
+    } else {
+        produtosFiltrados = produtos.filter(produto => 
+            produto.titulo.toLowerCase().includes(busca) ||
+            (produto.descricao && produto.descricao.toLowerCase().includes(busca))
+        );
     }
-    
-    // Aguardar 300ms antes de filtrar
-    buscaTimeout = setTimeout(() => {
-        const buscaInput = document.getElementById('busca');
-        if (!buscaInput) {
-            console.error('Campo de busca não encontrado');
-            return;
-        }
-        
-        const busca = buscaInput.value.toLowerCase().trim();
-        const categoriaFiltro = document.getElementById('filtro-categoria')?.value || '';
-        
-        // Verificar se produtos está carregado
-        if (!produtos || produtos.length === 0) {
-            console.warn('Produtos ainda não foram carregados');
-            return;
-        }
-        
-        // Aplicar filtros
-        produtosFiltrados = produtos.filter(produto => {
-            // Filtro por categoria
-            if (categoriaFiltro && produto.categoria !== categoriaFiltro) {
-                return false;
-            }
-            
-            // Se não há busca, retornar true (já passou pelo filtro de categoria)
-            if (busca === '') {
-                return true;
-            }
-            
-            // Buscar no título
-            if (produto.titulo && produto.titulo.toLowerCase().includes(busca)) return true;
-            
-            // Buscar na descrição
-            if (produto.descricao && produto.descricao.toLowerCase().includes(busca)) return true;
-            
-            // Buscar na categoria
-            if (produto.categoria && produto.categoria.toLowerCase().includes(busca)) return true;
-            
-            // Buscar nas especificações
-            if (produto.especificacoes) {
-                try {
-                    const especificacoes = typeof produto.especificacoes === 'string' 
-                        ? JSON.parse(produto.especificacoes) 
-                        : produto.especificacoes;
-                    
-                    if (typeof especificacoes === 'object' && especificacoes !== null) {
-                        for (const [chave, valor] of Object.entries(especificacoes)) {
-                            if (chave.toLowerCase().includes(busca) || 
-                                String(valor).toLowerCase().includes(busca)) {
-                                return true;
-                            }
-                        }
-                    }
-                } catch (e) {
-                    console.warn('Erro ao processar especificações:', e);
-                }
-            }
-            
-            return false;
-        });
-        ordenarProdutos();
-    }, 300);
+    ordenarProdutos();
 }
 
 // Ordenar produtos
@@ -530,76 +321,21 @@ function ordenarProdutos() {
     renderizarProdutos(produtosParaOrdenar);
 }
 
-// Carregar imagens lazy quando visíveis
-function carregarImagensLazy() {
-    const imagens = document.querySelectorAll('.lazy-load[data-src]');
-    
-    if ('IntersectionObserver' in window) {
-        const imageObserver = new IntersectionObserver((entries, observer) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const img = entry.target;
-                    img.src = img.dataset.src;
-                    img.classList.remove('lazy-load');
-                    img.removeAttribute('data-src');
-                    observer.unobserve(img);
-                }
-            });
-        });
-        
-        imagens.forEach(img => imageObserver.observe(img));
-    } else {
-        // Fallback para navegadores antigos
-        imagens.forEach(img => {
-            img.src = img.dataset.src;
-            img.classList.remove('lazy-load');
-            img.removeAttribute('data-src');
-        });
-    }
-}
-
-// Calcular quantidade total automaticamente
-function calcularQuantidadeTotal() {
-    const quantidade_ml = parseInt(document.getElementById('quantidade_ml').value) || 0;
-    const quantidade_shopee = parseInt(document.getElementById('quantidade_shopee').value) || 0;
-    const total = quantidade_ml + quantidade_shopee;
-    
-    document.getElementById('quantidade').value = total;
-    document.getElementById('quantidade-total-display').textContent = total;
-}
-
-// Configurar campos de quantidade para limpar zero ao focar
+// Configurar campo de quantidade para limpar zero ao focar
 function configurarCamposQuantidade() {
-    const quantidadeML = document.getElementById('quantidade_ml');
-    const quantidadeShopee = document.getElementById('quantidade_shopee');
+    const quantidade = document.getElementById('quantidade');
     
-    if (quantidadeML) {
-        quantidadeML.addEventListener('focus', function() {
+    if (quantidade) {
+        quantidade.addEventListener('focus', function() {
             if (this.value === '0') {
                 this.value = '';
             }
         });
         
-        quantidadeML.addEventListener('blur', function() {
+        quantidade.addEventListener('blur', function() {
             if (this.value === '' || this.value === null) {
                 this.value = '0';
             }
-            calcularQuantidadeTotal();
-        });
-    }
-    
-    if (quantidadeShopee) {
-        quantidadeShopee.addEventListener('focus', function() {
-            if (this.value === '0') {
-                this.value = '';
-            }
-        });
-        
-        quantidadeShopee.addEventListener('blur', function() {
-            if (this.value === '' || this.value === null) {
-                this.value = '0';
-            }
-            calcularQuantidadeTotal();
         });
     }
 }
@@ -634,9 +370,8 @@ function abrirModalCriar() {
     document.getElementById('imagem').value = '';
     especificacoesCount = 0;
     document.getElementById('especificacoes-container').innerHTML = '';
-    calcularQuantidadeTotal(); // Inicializar o total
     resetarBotoesFormulario(); // Resetar botões
-    configurarCamposQuantidade(); // Configurar campos de quantidade
+    configurarCamposQuantidade(); // Configurar campo de quantidade
     document.getElementById('modal-produto').style.display = 'block';
 }
 
@@ -679,15 +414,11 @@ async function editarProduto(id) {
         document.getElementById('produto-id').value = produto.id;
         document.getElementById('titulo').value = produto.titulo;
         document.getElementById('descricao').value = produto.descricao || '';
-        document.getElementById('categoria').value = produto.categoria || '';
-        document.getElementById('quantidade_ml').value = produto.quantidade_mercado_livre || 0;
-        document.getElementById('quantidade_shopee').value = produto.quantidade_shopee || 0;
+        document.getElementById('quantidade').value = produto.quantidade || 0;
+        document.getElementById('valor_compra').value = produto.valor_compra || '';
         document.getElementById('imagem').value = produto.imagem || '';
         
-        // Calcular quantidade total baseada nas quantidades por e-commerce
-        calcularQuantidadeTotal();
-        
-        // Configurar campos de quantidade para limpar zero ao focar
+        // Configurar campo de quantidade para limpar zero ao focar
         configurarCamposQuantidade();
         
         // Preview da imagem
@@ -755,132 +486,49 @@ function fecharModal() {
     document.getElementById('modal-produto').style.display = 'none';
 }
 
-// Comprimir imagem usando Canvas
-function comprimirImagem(file, maxWidth = 1920, maxHeight = 1920, quality = 0.8) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                let width = img.width;
-                let height = img.height;
-                
-                // Redimensionar se necessário
-                if (width > maxWidth || height > maxHeight) {
-                    const ratio = Math.min(maxWidth / width, maxHeight / height);
-                    width = width * ratio;
-                    height = height * ratio;
-                }
-                
-                canvas.width = width;
-                canvas.height = height;
-                
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-                
-                // Converter para blob
-                canvas.toBlob((blob) => {
-                    if (blob) {
-                        resolve(blob);
-                    } else {
-                        reject(new Error('Erro ao comprimir imagem'));
-                    }
-                }, 'image/jpeg', quality);
-            };
-            img.onerror = reject;
-            img.src = e.target.result;
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
-}
-
-// Preview de imagem com compressão e barra de progresso
+// Preview de imagem
 async function previewImagem(event) {
     const file = event.target.files[0];
     if (!file) return;
     
-    // Validar tamanho (máximo 10MB antes de compressão)
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    if (file.size > maxSize) {
-        mostrarToast('Imagem muito grande! Máximo 10MB.', 'erro');
-        event.target.value = '';
-        return;
-    }
-    
     const previewContainer = document.getElementById('imagem-preview');
     
-    // Mostrar barra de progresso
+    // Mostrar loading
     previewContainer.innerHTML = `
-        <div class="upload-progress-container">
-            <div class="upload-progress-bar">
-                <div class="upload-progress-fill" id="upload-progress-fill" style="width: 0%"></div>
-            </div>
-            <p class="upload-progress-text" id="upload-progress-text">Comprimindo imagem...</p>
+        <div class="upload-loading">
+            <div class="spinner"></div>
+            <p>Enviando imagem...</p>
         </div>
     `;
     
-    const progressFill = document.getElementById('upload-progress-fill');
-    const progressText = document.getElementById('upload-progress-text');
+    // Upload da imagem
+    const formData = new FormData();
+    formData.append('imagem', file);
     
     try {
-        // Atualizar progresso
-        progressFill.style.width = '30%';
-        progressText.textContent = 'Comprimindo imagem...';
-        
-        // Comprimir imagem
-        const compressedFile = await comprimirImagem(file);
-        
-        progressFill.style.width = '60%';
-        progressText.textContent = 'Enviando para servidor...';
-        
-        // Upload da imagem comprimida
-        const formData = new FormData();
-        formData.append('imagem', compressedFile, file.name);
-        
-        // Simular progresso do upload (já que fetch não tem progresso nativo)
-        const progressInterval = setInterval(() => {
-            const currentWidth = parseInt(progressFill.style.width);
-            if (currentWidth < 90) {
-                progressFill.style.width = (currentWidth + 5) + '%';
-            }
-        }, 100);
-        
         const response = await fetch('/api/upload', {
             method: 'POST',
             body: formData
         });
         
-        clearInterval(progressInterval);
-        progressFill.style.width = '100%';
-        progressText.textContent = 'Concluído!';
-        
         const data = await response.json();
         if (response.ok) {
             document.getElementById('imagem').value = data.imagem;
             
-            // Preview da imagem comprimida
+            // Preview
             const reader = new FileReader();
             reader.onload = (e) => {
                 previewContainer.innerHTML = 
-                    `<img src="${e.target.result}" alt="Preview" class="imagem-preview-img">`;
+                    `<img src="${e.target.result}" alt="Preview">`;
             };
-            reader.readAsDataURL(compressedFile);
-            
-            // Mostrar tamanho reduzido se houver redução significativa
-            const tamanhoOriginal = (file.size / 1024).toFixed(1);
-            const tamanhoComprimido = (compressedFile.size / 1024).toFixed(1);
-            if (compressedFile.size < file.size * 0.9) {
-                mostrarToast(`Imagem comprimida: ${tamanhoOriginal}KB → ${tamanhoComprimido}KB`, 'sucesso');
-            }
+            reader.readAsDataURL(file);
         } else {
             previewContainer.innerHTML = '';
-            mostrarToast(data.erro || 'Erro ao fazer upload da imagem', 'erro');
+            mostrarMensagem(data.erro || 'Erro ao fazer upload da imagem', 'erro');
         }
     } catch (error) {
         previewContainer.innerHTML = '';
-        mostrarToast('Erro ao processar imagem: ' + error.message, 'erro');
+        mostrarMensagem('Erro ao fazer upload: ' + error.message, 'erro');
     }
 }
 
@@ -917,27 +565,10 @@ async function salvarProduto(event) {
     event.preventDefault();
     
     const id = document.getElementById('produto-id').value;
-    const titulo = document.getElementById('titulo').value.trim();
-    const descricao = document.getElementById('descricao').value.trim();
-    const categoria = document.getElementById('categoria').value.trim();
-    
-    // Validar quantidades (não permitir negativas)
-    let quantidade_ml = parseInt(document.getElementById('quantidade_ml').value) || 0;
-    let quantidade_shopee = parseInt(document.getElementById('quantidade_shopee').value) || 0;
-    
-    // Garantir que não sejam negativas
-    if (quantidade_ml < 0) {
-        quantidade_ml = 0;
-        document.getElementById('quantidade_ml').value = 0;
-        mostrarToast('Quantidade do Mercado Livre não pode ser negativa', 'aviso');
-    }
-    if (quantidade_shopee < 0) {
-        quantidade_shopee = 0;
-        document.getElementById('quantidade_shopee').value = 0;
-        mostrarToast('Quantidade da Shopee não pode ser negativa', 'aviso');
-    }
-    
-    const quantidade = quantidade_ml + quantidade_shopee; // Calcular total automaticamente
+    const titulo = document.getElementById('titulo').value;
+    const descricao = document.getElementById('descricao').value;
+    const quantidade = parseInt(document.getElementById('quantidade').value) || 0;
+    const valor_compra = parseFloat(document.getElementById('valor_compra').value) || 0;
     const imagem = document.getElementById('imagem').value;
     
     // Coletar especificações
@@ -953,10 +584,8 @@ async function salvarProduto(event) {
     const produto = {
         titulo,
         descricao,
-        categoria,
         quantidade,
-        quantidade_mercado_livre: quantidade_ml,
-        quantidade_shopee: quantidade_shopee,
+        valor_compra: valor_compra,
         imagem,
         especificacoes
     };
@@ -999,15 +628,14 @@ async function salvarProduto(event) {
         const data = await response.json();
         
         if (response.ok) {
-            const mensagem = modoEdicao ? `"${titulo}" atualizado com sucesso!` : `"${titulo}" criado com sucesso!`;
-            mostrarToast(mensagem, 'sucesso');
+            mostrarMensagem(data.mensagem || 'Produto salvo com sucesso!', 'sucesso');
             fecharModal();
             await carregarProdutos();
             // Restaurar ordenação após recarregar
             document.getElementById('ordenacao').value = ordenacaoAtual;
             ordenarProdutos();
         } else {
-            mostrarToast(data.erro || 'Erro ao salvar produto', 'erro');
+            mostrarMensagem(data.erro || 'Erro ao salvar produto', 'erro');
             // Reabilitar botões em caso de erro
             btnSalvar.disabled = false;
             btnSalvar.style.opacity = '1';
@@ -1018,7 +646,7 @@ async function salvarProduto(event) {
             }
         }
     } catch (error) {
-        mostrarToast('Erro ao salvar produto: ' + error.message, 'erro');
+        mostrarMensagem('Erro ao salvar produto: ' + error.message, 'erro');
         // Reabilitar botões em caso de erro
         btnSalvar.disabled = false;
         btnSalvar.style.opacity = '1';
@@ -1030,15 +658,9 @@ async function salvarProduto(event) {
     }
 }
 
-// Duplicar produto
-// Deletar produto com confirmação melhorada
+// Deletar produto
 async function deletarProduto(id) {
-    // Buscar nome do produto para mostrar na confirmação
-    const produto = produtos.find(p => p.id === id);
-    const nomeProduto = produto ? produto.titulo : 'este produto';
-    
-    // Modal de confirmação customizado
-    if (!confirm(`⚠️ Tem certeza que deseja excluir "${nomeProduto}"?\n\nEsta ação não pode ser desfeita.`)) {
+    if (!confirm('Tem certeza que deseja excluir este produto?')) {
         return;
     }
     
@@ -1050,58 +672,29 @@ async function deletarProduto(id) {
         const data = await response.json();
         
         if (response.ok) {
-            mostrarToast(`"${nomeProduto}" excluído com sucesso!`, 'sucesso');
+            mostrarMensagem(data.mensagem || 'Produto excluído com sucesso!', 'sucesso');
             await carregarProdutos();
             // Restaurar ordenação após recarregar
             document.getElementById('ordenacao').value = ordenacaoAtual;
             ordenarProdutos();
         } else {
-            mostrarToast(data.erro || 'Erro ao excluir produto', 'erro');
+            mostrarMensagem(data.erro || 'Erro ao excluir produto', 'erro');
         }
     } catch (error) {
-        mostrarToast('Erro ao excluir produto: ' + error.message, 'erro');
+        mostrarMensagem('Erro ao excluir produto: ' + error.message, 'erro');
     }
 }
 
-// Sistema de Toast Notifications
-function mostrarToast(mensagem, tipo = 'info') {
-    // Remover toasts anteriores
-    const toastsExistentes = document.querySelectorAll('.toast');
-    toastsExistentes.forEach(toast => toast.remove());
-    
-    // Criar novo toast
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${tipo}`;
-    
-    // Ícone baseado no tipo
-    const icones = {
-        'sucesso': '✅',
-        'erro': '❌',
-        'aviso': '⚠️',
-        'info': 'ℹ️'
-    };
-    
-    toast.innerHTML = `
-        <span class="toast-icon">${icones[tipo] || icones.info}</span>
-        <span class="toast-mensagem">${mensagem}</span>
-        <button class="toast-fechar" onclick="this.parentElement.remove()">&times;</button>
-    `;
-    
-    document.body.appendChild(toast);
-    
-    // Animação de entrada
-    setTimeout(() => toast.classList.add('toast-show'), 10);
-    
-    // Remover automaticamente após 4 segundos
-    setTimeout(() => {
-        toast.classList.remove('toast-show');
-        setTimeout(() => toast.remove(), 300);
-    }, 4000);
-}
-
-// Manter função antiga para compatibilidade (deprecated)
+// Mostrar mensagem
 function mostrarMensagem(texto, tipo = 'info') {
-    mostrarToast(texto, tipo);
+    const mensagem = document.getElementById('mensagem');
+    mensagem.textContent = texto;
+    mensagem.className = `mensagem ${tipo}`;
+    mensagem.style.display = 'block';
+    
+    setTimeout(() => {
+        mensagem.style.display = 'none';
+    }, 3000);
 }
 
 // Fechar modal ao clicar fora
@@ -1110,169 +703,398 @@ window.onclick = function(event) {
     if (event.target === modal) {
         fecharModal();
     }
+    const modalVenda = document.getElementById('modal-venda');
+    if (event.target === modalVenda) {
+        fecharModalVenda();
+    }
 }
 
-// Atalhos de teclado
-document.addEventListener('keydown', function(event) {
-    // Ctrl+N ou Cmd+N para novo produto
-    if ((event.ctrlKey || event.metaKey) && event.key === 'n') {
-        event.preventDefault();
-        const modal = document.getElementById('modal-produto');
-        if (modal.style.display !== 'block') {
-            abrirModalCriar();
-        }
+// ==================== FUNÇÕES DE ABAS ====================
+function mostrarAba(aba) {
+    abaAtual = aba;
+    
+    // Atualizar botões de aba
+    document.querySelectorAll('.aba-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.getElementById(`aba-${aba}`).classList.add('active');
+    
+    // Mostrar/ocultar conteúdo
+    document.querySelectorAll('.aba-content').forEach(content => {
+        content.classList.remove('active');
+        content.style.display = 'none';
+    });
+    document.getElementById(`aba-${aba}-content`).classList.add('active');
+    document.getElementById(`aba-${aba}-content`).style.display = 'block';
+    
+    // Mostrar/ocultar botão novo produto
+    const btnNovoProduto = document.getElementById('btn-novo-produto');
+    if (aba === 'produtos') {
+        btnNovoProduto.style.display = 'block';
+    } else {
+        btnNovoProduto.style.display = 'none';
     }
     
-    // Esc para fechar modal
-    if (event.key === 'Escape') {
-        const modal = document.getElementById('modal-produto');
-        if (modal.style.display === 'block') {
-            fecharModal();
-        }
+    // Carregar conteúdo da aba
+    if (aba === 'vendas') {
+        carregarVendas();
+    } else {
+        carregarProdutos();
     }
-    
-    // Enter para salvar (se estiver no modal e não estiver em textarea)
-    if (event.key === 'Enter' && !event.shiftKey) {
-        const modal = document.getElementById('modal-produto');
-        const activeElement = document.activeElement;
-        if (modal.style.display === 'block' && 
-            activeElement.tagName !== 'TEXTAREA' && 
-            activeElement.type !== 'submit') {
-            const form = document.getElementById('form-produto');
-            if (form && !activeElement.closest('.especificacao-item')) {
-                event.preventDefault();
-                form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
-            }
-        }
-    }
-});
+}
 
-// Exportar produtos para CSV
-async function exportarCSV() {
+function atualizarConteudo() {
+    if (abaAtual === 'vendas') {
+        carregarVendas();
+    } else {
+        atualizarProdutos();
+    }
+}
+
+// ==================== FUNÇÕES DE VENDAS ====================
+async function carregarVendas() {
     try {
-        const response = await fetch('/api/produtos/exportar-csv');
-        
+        const response = await fetch('/api/vendas');
         if (!response.ok) {
-            const error = await response.json();
-            mostrarToast(error.erro || 'Erro ao exportar CSV', 'erro');
-            return;
+            throw new Error('Erro ao carregar vendas');
         }
-        
-        // Obter o blob do CSV
-        const blob = await response.blob();
-        
-        // Criar link de download
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `controle-estoque-${new Date().toISOString().split('T')[0]}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        
-        mostrarToast('CSV exportado com sucesso!', 'sucesso');
+        vendas = await response.json();
+        renderizarVendas();
     } catch (error) {
-        mostrarToast('Erro ao exportar CSV: ' + error.message, 'erro');
+        mostrarMensagem('Erro ao carregar vendas: ' + error.message, 'erro');
     }
 }
 
-// Importar produtos de CSV
-async function importarCSV(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+function renderizarVendas() {
+    const container = document.getElementById('vendas-container');
     
-    if (!file.name.endsWith('.csv')) {
-        mostrarToast('Por favor, selecione um arquivo CSV', 'erro');
-        event.target.value = '';
+    if (vendas.length === 0) {
+        container.innerHTML = '<div class="vazio">Nenhuma venda registrada ainda</div>';
         return;
     }
     
-    const formData = new FormData();
-    formData.append('arquivo', file);
+    // Agrupar vendas por mês/ano e calcular lucro total
+    const vendasPorMes = {};
     
-    const loadingOverlay = document.getElementById('loading-overlay');
-    if (loadingOverlay) {
-        loadingOverlay.style.display = 'flex';
-        loadingOverlay.querySelector('p').textContent = 'Importando produtos...';
+    vendas.forEach(venda => {
+        // Obter mês/ano da venda
+        let dataVenda;
+        if (venda.data_venda) {
+            const partesData = venda.data_venda.split('T')[0].split('-');
+            if (partesData.length === 3) {
+                dataVenda = new Date(parseInt(partesData[0]), parseInt(partesData[1]) - 1, parseInt(partesData[2]));
+            } else {
+                dataVenda = new Date(venda.data_venda);
+            }
+        } else {
+            dataVenda = new Date();
+        }
+        
+        const mesAno = dataVenda.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        const mesAnoKey = `${dataVenda.getFullYear()}-${String(dataVenda.getMonth() + 1).padStart(2, '0')}`;
+        
+        if (!vendasPorMes[mesAnoKey]) {
+            vendasPorMes[mesAnoKey] = {
+                label: mesAno.charAt(0).toUpperCase() + mesAno.slice(1), // Capitalizar primeira letra
+                vendas: [],
+                lucroTotal: 0
+            };
+        }
+        
+        vendasPorMes[mesAnoKey].vendas.push(venda);
+        vendasPorMes[mesAnoKey].lucroTotal += venda.lucro || 0;
+    });
+    
+    // Ordenar meses (mais recente primeiro)
+    const mesesOrdenados = Object.keys(vendasPorMes).sort().reverse();
+    
+    // Renderizar por grupo
+    let html = '';
+    
+    mesesOrdenados.forEach(mesAnoKey => {
+        const grupo = vendasPorMes[mesAnoKey];
+        
+        // Formatar lucro total
+        const lucroTotalFormatado = grupo.lucroTotal.toFixed(2).replace('.', ',');
+        const corLucroTotal = grupo.lucroTotal >= 0 ? '#4ade80' : '#f87171';
+        const sinalLucro = grupo.lucroTotal >= 0 ? '+' : '';
+        
+        // Linha separadora do mês/ano com lucro total
+        html += `
+        <div class="venda-mes-separador">
+            <div class="venda-mes-titulo">${grupo.label}</div>
+            <div class="venda-mes-lucro" style="color: ${corLucroTotal};">
+                Lucro Total: ${sinalLucro}R$ ${lucroTotalFormatado}
+            </div>
+        </div>`;
+        
+        // Vendas do mês
+        grupo.vendas.forEach(venda => {
+            // Converter data corretamente (evitar problema de fuso horário)
+            let dataFormatada;
+            if (venda.data_venda) {
+                // Se a data vem como string "YYYY-MM-DD", tratar como data local
+                const partesData = venda.data_venda.split('T')[0].split('-');
+                if (partesData.length === 3) {
+                    // Criar data local (não UTC) para evitar mudança de dia
+                    const dataLocal = new Date(parseInt(partesData[0]), parseInt(partesData[1]) - 1, parseInt(partesData[2]));
+                    dataFormatada = dataLocal.toLocaleDateString('pt-BR');
+                } else {
+                    dataFormatada = new Date(venda.data_venda).toLocaleDateString('pt-BR');
+                }
+            } else {
+                dataFormatada = 'Data não informada';
+            }
+            
+            const ondeVendeu = venda.onde_vendeu === 'mercado_livre' ? '🛒 Mercado Livre' : '🛍️ Shopee';
+            const corLucro = venda.lucro >= 0 ? '#28a745' : '#dc3545';
+            const corPorcentagem = venda.porcentagem_lucro >= 0 ? '#28a745' : '#dc3545';
+            
+            html += `
+            <div class="venda-card">
+                <div class="venda-header">
+                    <div class="venda-produto">
+                        <h3>${venda.produto_titulo}</h3>
+                        <div class="venda-data">📅 ${dataFormatada}</div>
+                    </div>
+                </div>
+                <div class="venda-valores">
+                    <div class="venda-valor-item compra">
+                        <label>Valor de Compra</label>
+                        <div class="valor">R$ ${venda.valor_compra.toFixed(2).replace('.', ',')}</div>
+                    </div>
+                    <div class="venda-valor-item venda">
+                        <label>Valor de Venda</label>
+                        <div class="valor">R$ ${venda.valor_venda.toFixed(2).replace('.', ',')}</div>
+                    </div>
+                    <div class="venda-valor-item lucro">
+                        <label>Lucro</label>
+                        <div class="valor" style="color: ${corLucro};">R$ ${venda.lucro.toFixed(2).replace('.', ',')}</div>
+                    </div>
+                    <div class="venda-valor-item porcentagem">
+                        <label>% de Lucro</label>
+                        <div class="valor" style="color: ${corPorcentagem};">${venda.porcentagem_lucro >= 0 ? '+' : ''}${venda.porcentagem_lucro.toFixed(2)}%</div>
+                    </div>
+                </div>
+                <div class="venda-info">
+                    <div class="venda-info-item">
+                        ${ondeVendeu}
+                    </div>
+                </div>
+                ${venda.observacoes ? `
+                <div class="venda-observacoes">
+                    <strong>Observações:</strong>
+                    ${venda.observacoes}
+                </div>
+                ` : ''}
+            </div>
+            `;
+        });
+    });
+    
+    container.innerHTML = html;
+}
+
+function abrirModalVenda(produtoId, produtoTitulo, valorCompra, quantidade) {
+    // Verificar se há estoque disponível
+    if (quantidade <= 0) {
+        mostrarMensagem('Produto sem estoque disponível!', 'erro');
+        return;
     }
     
-    try {
-        const response = await fetch('/api/produtos/importar-csv', {
-            method: 'POST',
-            body: formData
-        });
+    document.getElementById('venda-produto-id').value = produtoId;
+    document.getElementById('venda-produto-titulo').value = produtoTitulo;
+    document.getElementById('venda-produto-nome').value = produtoTitulo;
+    document.getElementById('venda-valor-compra').value = valorCompra || 0;
+    document.getElementById('venda-valor-venda').value = '';
+    document.getElementById('venda-data').value = new Date().toISOString().split('T')[0];
+    document.getElementById('venda-onde').value = '';
+    document.getElementById('venda-observacoes-container').innerHTML = '';
+    observacoesCount = 0;
+    
+    // Atualizar resumo
+    atualizarResumoVenda();
+    
+    // Adicionar listener para atualizar resumo
+    const valorVendaInput = document.getElementById('venda-valor-venda');
+    valorVendaInput.removeEventListener('input', atualizarResumoVenda);
+    valorVendaInput.addEventListener('input', atualizarResumoVenda);
+    
+    document.getElementById('modal-venda').style.display = 'block';
+}
+
+function fecharModalVenda() {
+    // Reabilitar botão caso esteja desabilitado
+    const btnSalvar = document.querySelector('#form-venda button[type="submit"]');
+    if (btnSalvar) {
+        btnSalvar.disabled = false;
+        btnSalvar.innerHTML = 'Registrar Venda';
+    }
+    
+    document.getElementById('modal-venda').style.display = 'none';
+    document.getElementById('form-venda').reset();
+    document.getElementById('venda-observacoes-container').innerHTML = '';
+    observacoesCount = 0;
+}
+
+function atualizarResumoVenda() {
+    const valorCompra = parseFloat(document.getElementById('venda-valor-compra').value) || 0;
+    const valorVenda = parseFloat(document.getElementById('venda-valor-venda').value) || 0;
+    const resumo = document.getElementById('venda-resumo');
+    
+    if (valorVenda > 0) {
+        const lucro = valorVenda - valorCompra;
+        const porcentagem = valorCompra > 0 ? (lucro / valorCompra * 100) : 0;
         
-        const data = await response.json();
+        document.getElementById('venda-resumo-compra').textContent = 
+            `R$ ${valorCompra.toFixed(2).replace('.', ',')}`;
+        document.getElementById('venda-resumo-venda').textContent = 
+            `R$ ${valorVenda.toFixed(2).replace('.', ',')}`;
+        document.getElementById('venda-resumo-lucro').textContent = 
+            `R$ ${lucro.toFixed(2).replace('.', ',')}`;
+        document.getElementById('venda-resumo-porcentagem').textContent = 
+            `${porcentagem >= 0 ? '+' : ''}${porcentagem.toFixed(2)}%`;
         
-        if (response.ok) {
-            mostrarToast(`✅ ${data.mensagem || 'Produtos importados com sucesso!'}`, 'sucesso');
-            await carregarProdutos();
-            // Restaurar ordenação após recarregar
-            document.getElementById('ordenacao').value = ordenacaoAtual;
-            ordenarProdutos();
-        } else {
-            mostrarToast(data.erro || 'Erro ao importar CSV', 'erro');
-        }
-    } catch (error) {
-        mostrarToast('Erro ao importar CSV: ' + error.message, 'erro');
-    } finally {
-        // Limpar input
-        event.target.value = '';
-        if (loadingOverlay) {
-            loadingOverlay.style.display = 'none';
-        }
+        resumo.style.display = 'block';
+    } else {
+        resumo.style.display = 'none';
     }
 }
 
-// Configurar drag and drop para upload de imagem
-function configurarDragAndDrop() {
-    const imagemPreview = document.getElementById('imagem-preview');
-    const imagemUpload = document.getElementById('imagem-upload');
+function adicionarObservacao() {
+    const container = document.getElementById('venda-observacoes-container');
+    const id = observacoesCount++;
     
-    if (!imagemPreview || !imagemUpload) return;
-    
-    // Prevenir comportamento padrão
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        imagemPreview.addEventListener(eventName, preventDefaults, false);
-        document.body.addEventListener(eventName, preventDefaults, false);
+    const div = document.createElement('div');
+    div.className = 'especificacao-item';
+    div.innerHTML = `
+        <input type="text" placeholder="Observação" class="obs-chave" data-id="${id}">
+        <button type="button" onclick="removerObservacao(${id})">Remover</button>
+    `;
+    container.appendChild(div);
+}
+
+function removerObservacao(id) {
+    const items = document.querySelectorAll('#venda-observacoes-container .especificacao-item');
+    items.forEach(item => {
+        const input = item.querySelector('.obs-chave');
+        if (input && input.dataset.id == id) {
+            item.remove();
+        }
     });
+}
+
+async function salvarVenda(event) {
+    event.preventDefault();
     
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
+    const produtoId = parseInt(document.getElementById('venda-produto-id').value);
+    const valorVenda = parseFloat(document.getElementById('venda-valor-venda').value);
+    const dataVenda = document.getElementById('venda-data').value;
+    const ondeVendeu = document.getElementById('venda-onde').value;
+    
+    // Validações básicas
+    if (!produtoId || produtoId <= 0) {
+        mostrarMensagem('Produto inválido', 'erro');
+        return;
     }
     
-    // Destacar área de drop
-    ['dragenter', 'dragover'].forEach(eventName => {
-        imagemPreview.addEventListener(eventName, () => {
-            imagemPreview.classList.add('drag-over');
-        }, false);
-    });
+    if (!valorVenda || valorVenda <= 0) {
+        mostrarMensagem('Valor de venda deve ser maior que zero', 'erro');
+        return;
+    }
     
-    ['dragleave', 'drop'].forEach(eventName => {
-        imagemPreview.addEventListener(eventName, () => {
-            imagemPreview.classList.remove('drag-over');
-        }, false);
-    });
+    if (!dataVenda) {
+        mostrarMensagem('Data da venda é obrigatória', 'erro');
+        return;
+    }
     
-    // Processar arquivo solto
-    imagemPreview.addEventListener('drop', (e) => {
-        const dt = e.dataTransfer;
-        const files = dt.files;
-        
-        if (files.length > 0) {
-            const file = files[0];
-            if (file.type.startsWith('image/')) {
-                // Simular mudança no input file
-                const dataTransfer = new DataTransfer();
-                dataTransfer.items.add(file);
-                imagemUpload.files = dataTransfer.files;
-                previewImagem({ target: imagemUpload });
-            } else {
-                mostrarToast('Por favor, solte apenas arquivos de imagem', 'erro');
-            }
+    if (!ondeVendeu) {
+        mostrarMensagem('Selecione onde vendeu', 'erro');
+        return;
+    }
+    
+    // Coletar observações
+    const observacoesArray = [];
+    document.querySelectorAll('#venda-observacoes-container .obs-chave').forEach(input => {
+        const obs = input.value.trim();
+        if (obs) {
+            observacoesArray.push(obs);
         }
-    }, false);
+    });
+    const observacoes = observacoesArray.join(' | ');
+    
+    const venda = {
+        produto_id: produtoId,
+        valor_venda: valorVenda,
+        data_venda: dataVenda,
+        onde_vendeu: ondeVendeu,
+        observacoes: observacoes
+    };
+    
+    const btnSalvar = event.target.querySelector('button[type="submit"]');
+    if (!btnSalvar) {
+        console.error('Botão de salvar não encontrado');
+        return;
+    }
+    
+    const textoOriginal = btnSalvar.innerHTML;
+    btnSalvar.disabled = true;
+    btnSalvar.innerHTML = 'Registrando...';
+    
+    // Timeout de segurança (30 segundos)
+    const timeoutId = setTimeout(() => {
+        btnSalvar.disabled = false;
+        btnSalvar.innerHTML = textoOriginal;
+        mostrarMensagem('Tempo de espera excedido. Tente novamente.', 'erro');
+    }, 30000);
+    
+    // Garantir que o botão seja sempre reabilitado, mesmo em caso de erro
+    try {
+        const response = await fetch('/api/vendas', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(venda)
+        });
+        
+        clearTimeout(timeoutId);
+        
+        let data;
+        try {
+            data = await response.json();
+        } catch (jsonError) {
+            // Se não conseguir parsear JSON, tentar ler como texto
+            const textResponse = await response.text();
+            console.error('Erro ao parsear JSON:', textResponse);
+            btnSalvar.disabled = false;
+            btnSalvar.innerHTML = textoOriginal;
+            mostrarMensagem('Resposta inválida do servidor. Tente novamente.', 'erro');
+            return;
+        }
+        
+        if (response.ok) {
+            mostrarMensagem('Venda registrada com sucesso!', 'sucesso');
+            fecharModalVenda();
+            // Atualizar produtos e vendas
+            try {
+                await carregarProdutos();
+                await carregarVendas();
+            } catch (updateError) {
+                console.error('Erro ao atualizar após venda:', updateError);
+            }
+        } else {
+            mostrarMensagem(data.erro || 'Erro ao registrar venda', 'erro');
+            btnSalvar.disabled = false;
+            btnSalvar.innerHTML = textoOriginal;
+        }
+    } catch (error) {
+        clearTimeout(timeoutId);
+        console.error('Erro ao registrar venda:', error);
+        mostrarMensagem('Erro ao registrar venda: ' + (error.message || 'Erro desconhecido'), 'erro');
+        // Sempre reabilitar o botão em caso de erro
+        btnSalvar.disabled = false;
+        btnSalvar.innerHTML = textoOriginal;
+    }
 }
 

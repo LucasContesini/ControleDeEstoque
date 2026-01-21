@@ -1,12 +1,10 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory, Response
+from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 import os
 import json
 import requests
-import csv
-import io
 from datetime import datetime
-from models import init_db, get_db, produto_para_dict, DATABASE_TYPE
+from models import init_db, get_db, produto_para_dict, venda_para_dict, DATABASE_TYPE
 from db_helper import get_placeholder, get_cursor
 
 # Tentar importar storage (opcional)
@@ -156,16 +154,8 @@ def criar_produto():
             return jsonify({'erro': 'Título é obrigatório'}), 400
         
         descricao = data.get('descricao', '').strip()
-        categoria = data.get('categoria', '').strip()
-        
-        # Validar quantidades (não permitir negativas)
-        quantidade_ml = int(data.get('quantidade_mercado_livre', 0))
-        quantidade_shopee = int(data.get('quantidade_shopee', 0))
-        
-        if quantidade_ml < 0:
-            return jsonify({'erro': 'Quantidade do Mercado Livre não pode ser negativa'}), 400
-        if quantidade_shopee < 0:
-            return jsonify({'erro': 'Quantidade da Shopee não pode ser negativa'}), 400
+        quantidade = int(data.get('quantidade', 0))
+        valor_compra = float(data.get('valor_compra', 0) or 0)
         imagem = data.get('imagem', '')
         especificacoes = data.get('especificacoes', '')
         
@@ -188,19 +178,19 @@ def criar_produto():
             conn = get_db()
             cursor = get_cursor(conn)
             cursor.execute('''
-                INSERT INTO produtos (titulo, descricao, categoria, quantidade_mercado_livre, quantidade_shopee, imagem, especificacoes, data_criacao, data_atualizacao)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO produtos (titulo, descricao, quantidade, valor_compra, imagem, especificacoes, data_criacao, data_atualizacao)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            ''', (titulo, descricao, categoria, quantidade_ml, quantidade_shopee, imagem, especificacoes, data_atual, data_atual))
+            ''', (titulo, descricao, quantidade, valor_compra, imagem, especificacoes, data_atual, data_atual))
             produto_id = cursor.fetchone()['id']
         else:
             data_atual = datetime.now().isoformat()
             conn = get_db()
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO produtos (titulo, descricao, categoria, quantidade_mercado_livre, quantidade_shopee, imagem, especificacoes, data_criacao, data_atualizacao)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (titulo, descricao, categoria, quantidade_ml, quantidade_shopee, imagem, especificacoes, data_atual, data_atual))
+                INSERT INTO produtos (titulo, descricao, quantidade, valor_compra, imagem, especificacoes, data_criacao, data_atualizacao)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (titulo, descricao, quantidade, valor_compra, imagem, especificacoes, data_atual, data_atual))
             produto_id = cursor.lastrowid
         
         conn.commit()
@@ -211,184 +201,6 @@ def criar_produto():
         
     except Exception as e:
         return jsonify({'erro': str(e)}), 500
-
-@app.route('/api/debug/storage', methods=['GET'])
-def debug_storage():
-    """Rota de debug para verificar configuração do Storage"""
-    try:
-        from config import SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY, BUCKET_NAME, IS_VERCEL
-        from storage import usar_storage_cloud, SUPABASE_LIB_AVAILABLE
-        
-        info = {
-            'is_vercel': IS_VERCEL,
-            'storage_cloud_disponivel': STORAGE_CLOUD_DISPONIVEL,
-            'usar_s3': USAR_S3,
-            'supabase_lib_available': SUPABASE_LIB_AVAILABLE,
-            'usar_storage_cloud': usar_storage_cloud() if 'usar_storage_cloud' in globals() else False,
-            'config': {
-                'supabase_url': SUPABASE_URL if SUPABASE_URL else 'NÃO CONFIGURADO',
-                'supabase_key': SUPABASE_KEY[:20] + '...' if SUPABASE_KEY and len(SUPABASE_KEY) > 20 else (SUPABASE_KEY if SUPABASE_KEY else 'NÃO CONFIGURADO'),
-                'supabase_service_key': SUPABASE_SERVICE_KEY[:20] + '...' if SUPABASE_SERVICE_KEY and len(SUPABASE_SERVICE_KEY) > 20 else (SUPABASE_SERVICE_KEY if SUPABASE_SERVICE_KEY else 'NÃO CONFIGURADO'),
-                'bucket_name': BUCKET_NAME if BUCKET_NAME else 'NÃO CONFIGURADO',
-            },
-            'env_vars': {
-                'SUPABASE_URL': '✅' if os.getenv('SUPABASE_URL') else '❌',
-                'SUPABASE_KEY': '✅' if os.getenv('SUPABASE_KEY') else '❌',
-                'SUPABASE_SERVICE_KEY': '✅' if os.getenv('SUPABASE_SERVICE_KEY') else '❌',
-                'BUCKET_NAME': '✅' if os.getenv('BUCKET_NAME') else '❌ (usando padrão)',
-            },
-            'upload_function': '✅' if upload_imagem_cloud else '❌',
-            'delete_function': '✅' if deletar_imagem_cloud else '❌',
-        }
-        
-        # Verificar valores reais das envs (mascarados)
-        env_values = {}
-        for key in ['SUPABASE_URL', 'SUPABASE_KEY', 'SUPABASE_SERVICE_KEY', 'BUCKET_NAME']:
-            value = os.getenv(key, '')
-            if value:
-                if 'KEY' in key:
-                    env_values[key] = f"{value[:10]}...{value[-5:]}" if len(value) > 15 else '***'
-                else:
-                    env_values[key] = value
-            else:
-                env_values[key] = 'NÃO DEFINIDO'
-        
-        info['env_values'] = env_values
-        
-        return jsonify(info)
-    except Exception as e:
-        import traceback
-        return jsonify({
-            'status': 'erro',
-            'erro': str(e),
-            'traceback': traceback.format_exc()
-        }), 500
-
-@app.route('/api/debug/banco', methods=['GET'])
-def debug_banco():
-    """Rota de debug para verificar conexão e dados do banco"""
-    try:
-        # Mostrar informações de configuração
-        from models import DATABASE_CONFIG, DATABASE_TYPE
-        from config import IS_VERCEL, DB_PORT, DB_HOST
-        
-        config_info = {
-            'tipo_banco': DATABASE_TYPE,
-            'is_vercel': IS_VERCEL,
-            'db_host': DB_HOST,
-            'db_port': DB_PORT,
-            'tem_database_url': bool(os.getenv('DATABASE_URL', '')),
-        }
-        
-        # Mascarar senha se for string
-        if isinstance(DATABASE_CONFIG, str):
-            config_info['database_config'] = DATABASE_CONFIG.split('@')[0] + '@***' if '@' in DATABASE_CONFIG else '***'
-        else:
-            config_info['database_config'] = {
-                'host': DATABASE_CONFIG.get('host', ''),
-                'port': DATABASE_CONFIG.get('port', ''),
-                'database': DATABASE_CONFIG.get('database', ''),
-                'user': DATABASE_CONFIG.get('user', ''),
-                'password': '***',
-            }
-        
-        ensure_db_initialized()
-        conn = get_db()
-        cursor = get_cursor(conn)
-        
-        info = {
-            'status': 'conectado',
-            'tipo_banco': DATABASE_TYPE,
-            'tabela_existe': False,
-            'estrutura_tabela': [],
-            'total_produtos': 0,
-            'produtos': [],
-            'problemas': []
-        }
-        
-        # Verificar se tabela existe
-        if DATABASE_TYPE == 'postgresql':
-            cursor.execute("""
-                SELECT table_name 
-                FROM information_schema.tables 
-                WHERE table_schema = 'public' AND table_name = 'produtos'
-            """)
-            tabela_existe = cursor.fetchone()
-            info['tabela_existe'] = bool(tabela_existe)
-            
-            if tabela_existe:
-                # Estrutura da tabela
-                cursor.execute("""
-                    SELECT column_name, data_type, is_nullable
-                    FROM information_schema.columns
-                    WHERE table_name = 'produtos'
-                    ORDER BY ordinal_position
-                """)
-                info['estrutura_tabela'] = [
-                    {'nome': col[0], 'tipo': col[1], 'nullable': col[2]}
-                    for col in cursor.fetchall()
-                ]
-                
-                # Total de produtos
-                cursor.execute("SELECT COUNT(*) FROM produtos")
-                info['total_produtos'] = cursor.fetchone()['count']
-                
-                # Primeiros 5 produtos
-                cursor.execute("""
-                    SELECT * FROM produtos 
-                    ORDER BY data_atualizacao DESC 
-                    LIMIT 5
-                """)
-                produtos_raw = cursor.fetchall()
-                info['produtos'] = [produto_para_dict(p) for p in produtos_raw]
-                
-                # Verificar problemas
-                cursor.execute("""
-                    SELECT id, titulo, quantidade_mercado_livre, quantidade_shopee
-                    FROM produtos
-                    WHERE quantidade_mercado_livre IS NULL 
-                       OR quantidade_shopee IS NULL
-                """)
-                problemas_raw = cursor.fetchall()
-                info['problemas'] = [
-                    {
-                        'id': p['id'],
-                        'titulo': p['titulo'],
-                        'ml': str(p['quantidade_mercado_livre']),
-                        'shopee': str(p['quantidade_shopee']),
-                        'tipo_ml': str(type(p['quantidade_mercado_livre'])),
-                        'tipo_shopee': str(type(p['quantidade_shopee']))
-                    }
-                    for p in problemas_raw
-                ]
-        else:
-            # SQLite
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='produtos'")
-            info['tabela_existe'] = bool(cursor.fetchone())
-            
-            if info['tabela_existe']:
-                cursor.execute("SELECT COUNT(*) FROM produtos")
-                info['total_produtos'] = cursor.fetchone()[0]
-                
-                cursor.execute("SELECT * FROM produtos ORDER BY data_atualizacao DESC LIMIT 5")
-                produtos_raw = cursor.fetchall()
-                info['produtos'] = [produto_para_dict(p) for p in produtos_raw]
-        
-        cursor.close()
-        conn.close()
-        
-        # Adicionar informações de configuração ao retorno
-        info['configuracao'] = config_info
-        
-        return jsonify(info)
-        
-    except Exception as e:
-        import traceback
-        return jsonify({
-            'status': 'erro',
-            'erro': str(e),
-            'traceback': traceback.format_exc()
-        }), 500
 
 @app.route('/api/produtos/<int:produto_id>', methods=['GET'])
 def obter_produto(produto_id):
@@ -433,32 +245,19 @@ def atualizar_produto(produto_id):
             return jsonify({'erro': 'Título é obrigatório'}), 400
         
         descricao = data.get('descricao', produto['descricao'])
-        categoria = data.get('categoria', produto.get('categoria', ''))
         
-        # Obter quantidades por e-commerce (com fallback seguro)
-        try:
-            quantidade_ml_existente = produto['quantidade_mercado_livre'] if produto['quantidade_mercado_livre'] is not None else 0
-        except (KeyError, IndexError):
-            quantidade_ml_existente = 0
+        # Obter quantidade única
+        if DATABASE_TYPE == 'postgresql':
+            quantidade_existente = int(produto.get('quantidade', 0) or 0)
+        else:
+            try:
+                quantidade_existente = int(produto['quantidade'] if produto['quantidade'] is not None else 0)
+            except (KeyError, ValueError, TypeError):
+                quantidade_existente = 0
         
-        try:
-            quantidade_shopee_existente = produto['quantidade_shopee'] if produto['quantidade_shopee'] is not None else 0
-        except (KeyError, IndexError):
-            quantidade_shopee_existente = 0
-        
-        quantidade_ml = int(data.get('quantidade_mercado_livre', quantidade_ml_existente))
-        quantidade_shopee = int(data.get('quantidade_shopee', quantidade_shopee_existente))
-        
-        # Validar quantidades (não permitir negativas)
-        if quantidade_ml < 0:
-            cursor.close()
-            conn.close()
-            return jsonify({'erro': 'Quantidade do Mercado Livre não pode ser negativa'}), 400
-        if quantidade_shopee < 0:
-            cursor.close()
-            conn.close()
-            return jsonify({'erro': 'Quantidade da Shopee não pode ser negativa'}), 400
-        
+        quantidade = int(data.get('quantidade', quantidade_existente))
+        valor_compra_existente = float(produto.get('valor_compra', 0) or 0) if DATABASE_TYPE == 'postgresql' else float(produto.get('valor_compra', 0) or 0)
+        valor_compra = float(data.get('valor_compra', valor_compra_existente) or 0)
         imagem_nova = data.get('imagem', produto['imagem'])
         imagem_antiga = produto['imagem']
         especificacoes = data.get('especificacoes', produto['especificacoes'])
@@ -491,21 +290,19 @@ def atualizar_produto(produto_id):
                         except Exception as e:
                             print(f"⚠️  Erro ao deletar imagem antiga do storage: {e}")
                     else:
-                        # Deletar do armazenamento local (apenas se não estiver no Vercel)
-                        from config import IS_VERCEL
-                        if not IS_VERCEL:
-                            try:
-                                # Se for URL completa, extrair apenas o nome do arquivo
-                                nome_arquivo = imagem_antiga
-                                if imagem_antiga.startswith('http'):
-                                    nome_arquivo = imagem_antiga.split('/')[-1]
-                                
-                                imagem_path = os.path.join(app.config['UPLOAD_FOLDER'], nome_arquivo)
-                                if os.path.exists(imagem_path):
-                                    os.remove(imagem_path)
-                                    print(f"✅ Imagem antiga deletada localmente: {nome_arquivo}")
-                            except Exception as e:
-                                print(f"⚠️  Erro ao deletar imagem antiga localmente: {e}")
+                        # Deletar do armazenamento local
+                        try:
+                            # Se for URL completa, extrair apenas o nome do arquivo
+                            nome_arquivo = imagem_antiga
+                            if imagem_antiga.startswith('http'):
+                                nome_arquivo = imagem_antiga.split('/')[-1]
+                            
+                            imagem_path = os.path.join(app.config['UPLOAD_FOLDER'], nome_arquivo)
+                            if os.path.exists(imagem_path):
+                                os.remove(imagem_path)
+                                print(f"✅ Imagem antiga deletada localmente: {nome_arquivo}")
+                        except Exception as e:
+                            print(f"⚠️  Erro ao deletar imagem antiga localmente: {e}")
                 else:
                     print(f"ℹ️  Imagem antiga não deletada: está sendo usada por {total_uso} outro(s) produto(s)")
         
@@ -527,16 +324,16 @@ def atualizar_produto(produto_id):
             data_atual = dt.now()
             cursor.execute('''
                 UPDATE produtos 
-                SET titulo = %s, descricao = %s, categoria = %s, quantidade_mercado_livre = %s, quantidade_shopee = %s, imagem = %s, especificacoes = %s, data_atualizacao = %s
+                SET titulo = %s, descricao = %s, quantidade = %s, valor_compra = %s, imagem = %s, especificacoes = %s, data_atualizacao = %s
                 WHERE id = %s
-            ''', (titulo, descricao, categoria, quantidade_ml, quantidade_shopee, imagem, especificacoes, data_atual, produto_id))
+            ''', (titulo, descricao, quantidade, valor_compra, imagem, especificacoes, data_atual, produto_id))
         else:
             data_atual = datetime.now().isoformat()
             cursor.execute('''
                 UPDATE produtos 
-                SET titulo = ?, descricao = ?, categoria = ?, quantidade_mercado_livre = ?, quantidade_shopee = ?, imagem = ?, especificacoes = ?, data_atualizacao = ?
+                SET titulo = ?, descricao = ?, quantidade = ?, valor_compra = ?, imagem = ?, especificacoes = ?, data_atualizacao = ?
                 WHERE id = ?
-            ''', (titulo, descricao, categoria, quantidade_ml, quantidade_shopee, imagem, especificacoes, data_atual, produto_id))
+            ''', (titulo, descricao, quantidade, valor_compra, imagem, especificacoes, data_atual, produto_id))
         
         conn.commit()
         cursor.close()
@@ -565,8 +362,27 @@ def deletar_produto(produto_id):
             conn.close()
             return jsonify({'erro': 'Produto não encontrado'}), 404
         
+        # Antes de deletar, garantir que produto_titulo esteja salvo em todas as vendas
+        # (caso ainda não esteja por algum motivo)
+        if DATABASE_TYPE == 'postgresql':
+            cursor.execute('''
+                UPDATE vendas v
+                SET produto_titulo = p.titulo
+                FROM produtos p
+                WHERE v.produto_id = p.id 
+                AND v.produto_id = %s
+                AND (v.produto_titulo IS NULL OR v.produto_titulo = '')
+            ''', (produto_id,))
+        else:
+            cursor.execute('''
+                UPDATE vendas 
+                SET produto_titulo = (SELECT titulo FROM produtos WHERE produtos.id = vendas.produto_id)
+                WHERE produto_id = ?
+                AND (produto_titulo IS NULL OR produto_titulo = '')
+            ''', (produto_id,))
+        
         # Deletar imagem se existir e não estiver sendo usada por outro produto
-        imagem_para_deletar = produto['imagem']
+        imagem_para_deletar = produto['imagem'] if DATABASE_TYPE == 'postgresql' else produto.get('imagem', '')
         if imagem_para_deletar:
             # Verificar se é uma URL externa (Unsplash, etc) - não precisa deletar
             if imagem_para_deletar.startswith('https://source.unsplash.com') or imagem_para_deletar.startswith('http://source.unsplash.com'):
@@ -596,21 +412,19 @@ def deletar_produto(produto_id):
                         except Exception as e:
                             print(f"⚠️  Erro ao deletar imagem do Supabase Storage: {e}")
                     else:
-                        # Deletar do armazenamento local (apenas se não estiver no Vercel)
-                        from config import IS_VERCEL
-                        if not IS_VERCEL:
-                            try:
-                                # Se for URL completa, extrair apenas o nome do arquivo
-                                nome_arquivo = imagem_para_deletar
-                                if imagem_para_deletar.startswith('http'):
-                                    nome_arquivo = imagem_para_deletar.split('/')[-1]
-                                
-                                imagem_path = os.path.join(app.config['UPLOAD_FOLDER'], nome_arquivo)
-                                if os.path.exists(imagem_path):
-                                    os.remove(imagem_path)
-                                    print(f"✅ Imagem deletada localmente: {nome_arquivo}")
-                            except Exception as e:
-                                print(f"⚠️  Erro ao deletar imagem localmente: {e}")
+                        # Deletar do armazenamento local
+                        try:
+                            # Se for URL completa, extrair apenas o nome do arquivo
+                            nome_arquivo = imagem_para_deletar
+                            if imagem_para_deletar.startswith('http'):
+                                nome_arquivo = imagem_para_deletar.split('/')[-1]
+                            
+                            imagem_path = os.path.join(app.config['UPLOAD_FOLDER'], nome_arquivo)
+                            if os.path.exists(imagem_path):
+                                os.remove(imagem_path)
+                                print(f"✅ Imagem deletada localmente: {nome_arquivo}")
+                        except Exception as e:
+                            print(f"⚠️  Erro ao deletar imagem localmente: {e}")
                 else:
                     print(f"ℹ️  Imagem não deletada: está sendo usada por {total_uso} outro(s) produto(s)")
         
@@ -643,10 +457,6 @@ def upload_imagem():
         
         # Tentar usar Supabase Storage se configurado
         ensure_storage_initialized()
-        
-        # No Vercel, só podemos usar Supabase Storage (sistema de arquivos é somente leitura)
-        from config import IS_VERCEL, SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY
-        
         if STORAGE_CLOUD_DISPONIVEL and upload_imagem_cloud:
             try:
                 url_imagem = upload_imagem_cloud(file, filename)
@@ -656,37 +466,14 @@ def upload_imagem():
                 })
             except Exception as e:
                 return jsonify({'erro': f'Erro ao fazer upload para nuvem: {str(e)}'}), 500
-        elif IS_VERCEL:
-            # No Vercel, Supabase Storage é obrigatório
-            # Verificar quais variáveis estão faltando
-            variaveis_faltando = []
-            if not SUPABASE_URL:
-                variaveis_faltando.append('SUPABASE_URL')
-            if not SUPABASE_KEY:
-                variaveis_faltando.append('SUPABASE_KEY')
-            if not SUPABASE_SERVICE_KEY:
-                variaveis_faltando.append('SUPABASE_SERVICE_KEY')
-            
-            mensagem = 'Supabase Storage não configurado.'
-            if variaveis_faltando:
-                mensagem += f' Configure as variáveis: {", ".join(variaveis_faltando)}'
-            else:
-                mensagem += ' Verifique as configurações no Vercel Dashboard.'
-            
-            return jsonify({'erro': mensagem}), 500
         else:
-            # Fallback: armazenamento local (apenas em desenvolvimento)
-            try:
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(filepath)
-                return jsonify({
-                    'imagem': filename,  # Retorna apenas o nome do arquivo
-                    'mensagem': 'Imagem enviada com sucesso (armazenamento local)'
-                })
-            except (OSError, PermissionError) as e:
-                return jsonify({
-                    'erro': f'Erro ao salvar arquivo localmente: {str(e)}. Configure Supabase Storage para produção.'
-                }), 500
+            # Fallback: armazenamento local
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            return jsonify({
+                'imagem': filename,  # Retorna apenas o nome do arquivo
+                'mensagem': 'Imagem enviada com sucesso (armazenamento local)'
+            })
     
     return jsonify({'erro': 'Tipo de arquivo não permitido'}), 400
 
@@ -699,229 +486,156 @@ def uploaded_file(filename):
         return redirect(filename)
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-@app.route('/api/produtos/exportar-csv', methods=['GET'])
-def exportar_csv():
-    """Exporta todos os produtos para CSV"""
+@app.route('/api/vendas', methods=['GET'])
+def listar_vendas():
+    """Lista todas as vendas ordenadas por data (mais recente primeiro)"""
     ensure_db_initialized()
-    try:
-        conn = get_db()
-        cursor = get_cursor(conn)
-        cursor.execute('SELECT * FROM produtos ORDER BY data_atualizacao DESC')
-        produtos = cursor.fetchall()
-        cursor.close()
-        conn.close()
-        
-        # Criar CSV em memória
-        output = io.StringIO()
-        writer = csv.writer(output)
-        
-        # Cabeçalho
-        writer.writerow([
-            'ID',
-            'Título',
-            'Descrição',
-            'Quantidade Total',
-            'Quantidade Mercado Livre',
-            'Quantidade Shopee',
-            'Imagem',
-            'Especificações',
-            'Data Criação',
-            'Data Atualização'
-        ])
-        
-        # Dados
-        for produto in produtos:
-            produto_dict = produto_para_dict(produto)
-            # Converter especificações de JSON para string legível
-            especificacoes = produto_dict.get('especificacoes', {})
-            if isinstance(especificacoes, str):
-                try:
-                    especificacoes = json.loads(especificacoes)
-                except:
-                    especificacoes = {}
-            
-            especificacoes_str = ', '.join([f"{k}: {v}" for k, v in especificacoes.items()]) if especificacoes else ''
-            
-            writer.writerow([
-                produto_dict.get('id', ''),
-                produto_dict.get('titulo', ''),
-                produto_dict.get('descricao', ''),
-                produto_dict.get('quantidade', 0),
-                produto_dict.get('quantidade_mercado_livre', 0),
-                produto_dict.get('quantidade_shopee', 0),
-                produto_dict.get('imagem', ''),
-                especificacoes_str,
-                produto_dict.get('data_criacao', ''),
-                produto_dict.get('data_atualizacao', '')
-            ])
-        
-        # Criar resposta com CSV
-        output.seek(0)
-        response = Response(
-            output.getvalue(),
-            mimetype='text/csv',
-            headers={
-                'Content-Disposition': f'attachment; filename=controle-estoque-{datetime.now().strftime("%Y%m%d")}.csv'
-            }
-        )
-        
-        return response
-        
-    except Exception as e:
-        return jsonify({'erro': f'Erro ao exportar CSV: {str(e)}'}), 500
+    conn = get_db()
+    cursor = get_cursor(conn)
+    
+    # Buscar vendas (usar produto_titulo da tabela vendas se produto foi deletado)
+    if DATABASE_TYPE == 'postgresql':
+        cursor.execute('''
+            SELECT v.*, 
+                   COALESCE(v.produto_titulo, p.titulo, 'Produto Deletado') as produto_titulo_final
+            FROM vendas v
+            LEFT JOIN produtos p ON v.produto_id = p.id
+            ORDER BY v.data_venda DESC, v.data_criacao DESC
+        ''')
+    else:
+        cursor.execute('''
+            SELECT v.*, 
+                   COALESCE(v.produto_titulo, p.titulo, 'Produto Deletado') as produto_titulo_final
+            FROM vendas v
+            LEFT JOIN produtos p ON v.produto_id = p.id
+            ORDER BY v.data_venda DESC, v.data_criacao DESC
+        ''')
+    
+    vendas = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    # Converter para dict com informações do produto
+    vendas_dict = []
+    for venda in vendas:
+        if DATABASE_TYPE == 'postgresql':
+            produto_titulo = venda.get('produto_titulo_final', venda.get('produto_titulo', 'Produto Deletado'))
+        else:
+            produto_titulo = venda.get('produto_titulo_final', venda.get('produto_titulo', 'Produto Deletado'))
+        vendas_dict.append(venda_para_dict(venda, produto_titulo))
+    
+    return jsonify(vendas_dict)
 
-@app.route('/api/produtos/importar-csv', methods=['POST'])
-def importar_csv():
-    """Importa produtos de um arquivo CSV"""
+@app.route('/api/vendas', methods=['POST'])
+def criar_venda():
+    """Cria uma nova venda e diminui o estoque do produto"""
     ensure_db_initialized()
     try:
-        if 'arquivo' not in request.files:
-            return jsonify({'erro': 'Nenhum arquivo enviado'}), 400
+        data = request.get_json()
         
-        file = request.files['arquivo']
-        if file.filename == '':
-            return jsonify({'erro': 'Nenhum arquivo selecionado'}), 400
+        produto_id = int(data.get('produto_id', 0))
+        valor_venda = float(data.get('valor_venda', 0) or 0)
+        data_venda = data.get('data_venda', '').strip()
+        onde_vendeu = data.get('onde_vendeu', '').strip()
+        observacoes = data.get('observacoes', '').strip()
         
-        if not file.filename.endswith('.csv'):
-            return jsonify({'erro': 'Arquivo deve ser CSV'}), 400
+        # Validações
+        if produto_id <= 0:
+            return jsonify({'erro': 'Produto é obrigatório'}), 400
         
-        # Ler arquivo CSV
-        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
-        csv_reader = csv.DictReader(stream)
+        if valor_venda <= 0:
+            return jsonify({'erro': 'Valor de venda deve ser maior que zero'}), 400
         
-        produtos_importados = 0
-        produtos_atualizados = 0
-        erros = []
+        if not data_venda:
+            return jsonify({'erro': 'Data da venda é obrigatória'}), 400
+        
+        if onde_vendeu not in ['mercado_livre', 'shopee']:
+            return jsonify({'erro': 'Onde vendeu deve ser "mercado_livre" ou "shopee"'}), 400
         
         conn = get_db()
         cursor = get_cursor(conn)
         placeholder = get_placeholder()
         
-        for linha, row in enumerate(csv_reader, start=2):  # Começa em 2 porque linha 1 é cabeçalho
+        # Buscar produto para obter valor_compra e verificar estoque
+        cursor.execute(f'SELECT * FROM produtos WHERE id = {placeholder}', (produto_id,))
+        produto = cursor.fetchone()
+        
+        if not produto:
+            cursor.close()
+            conn.close()
+            return jsonify({'erro': 'Produto não encontrado'}), 404
+        
+        # Obter valor de compra, quantidade e título do produto
+        if DATABASE_TYPE == 'postgresql':
+            valor_compra = float(produto.get('valor_compra', 0) or 0)
+            quantidade = int(produto.get('quantidade', 0) or 0)
+            produto_titulo = produto.get('titulo', '')
+        else:
+            valor_compra = float(produto['valor_compra'] if produto['valor_compra'] is not None else 0)
             try:
-                # Validar campos obrigatórios
-                titulo = row.get('Título', '').strip()
-                if not titulo:
-                    erros.append(f'Linha {linha}: Título é obrigatório')
-                    continue
-                
-                # Ler dados do CSV
-                descricao = row.get('Descrição', '').strip()
-                quantidade_ml = int(row.get('Quantidade Mercado Livre', 0) or 0)
-                quantidade_shopee = int(row.get('Quantidade Shopee', 0) or 0)
-                imagem = row.get('Imagem', '').strip()
-                
-                # Processar especificações
-                especificacoes_str = row.get('Especificações', '').strip()
-                if especificacoes_str:
-                    # Tentar converter de string para dict
-                    try:
-                        especificacoes = json.loads(especificacoes_str)
-                    except:
-                        # Se não for JSON, criar dict simples
-                        especificacoes = {}
-                        for item in especificacoes_str.split(','):
-                            if ':' in item:
-                                k, v = item.split(':', 1)
-                                especificacoes[k.strip()] = v.strip()
-                else:
-                    especificacoes = {}
-                
-                especificacoes_json = json.dumps(especificacoes, ensure_ascii=False)
-                
-                # Verificar se produto já existe (por título)
-                cursor.execute(f'SELECT id FROM produtos WHERE titulo = {placeholder}', (titulo,))
-                produto_existente = cursor.fetchone()
-                
-                if DATABASE_TYPE == 'postgresql':
-                    from datetime import datetime as dt
-                    data_atual = dt.now()
-                    
-                    if produto_existente:
-                        # Atualizar produto existente
-                        produto_id = produto_existente['id'] if isinstance(produto_existente, dict) else produto_existente[0]
-                        cursor.execute(f'''
-                            UPDATE produtos 
-                            SET descricao = {placeholder}, 
-                                quantidade_mercado_livre = {placeholder},
-                                quantidade_shopee = {placeholder},
-                                imagem = {placeholder},
-                                especificacoes = {placeholder},
-                                data_atualizacao = {placeholder}
-                            WHERE id = {placeholder}
-                        ''', (descricao, quantidade_ml, quantidade_shopee, imagem, especificacoes_json, data_atual, produto_id))
-                        produtos_atualizados += 1
-                    else:
-                        # Criar novo produto
-                        cursor.execute('''
-                            INSERT INTO produtos (titulo, descricao, quantidade_mercado_livre, quantidade_shopee, imagem, especificacoes, data_criacao, data_atualizacao)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        ''', (titulo, descricao, quantidade_ml, quantidade_shopee, imagem, especificacoes_json, data_atual, data_atual))
-                        produtos_importados += 1
-                else:
-                    data_atual = datetime.now().isoformat()
-                    
-                    if produto_existente:
-                        # Atualizar produto existente
-                        produto_id = produto_existente[0]
-                        cursor.execute('''
-                            UPDATE produtos 
-                            SET descricao = ?, 
-                                quantidade_mercado_livre = ?,
-                                quantidade_shopee = ?,
-                                imagem = ?,
-                                especificacoes = ?,
-                                data_atualizacao = ?
-                            WHERE id = ?
-                        ''', (descricao, quantidade_ml, quantidade_shopee, imagem, especificacoes_json, data_atual, produto_id))
-                        produtos_atualizados += 1
-                    else:
-                        # Criar novo produto
-                        cursor.execute('''
-                            INSERT INTO produtos (titulo, descricao, quantidade_mercado_livre, quantidade_shopee, imagem, especificacoes, data_criacao, data_atualizacao)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', (titulo, descricao, quantidade_ml, quantidade_shopee, imagem, especificacoes_json, data_atual, data_atual))
-                        produtos_importados += 1
-                        
-            except Exception as e:
-                erros.append(f'Linha {linha}: {str(e)}')
-                continue
+                quantidade = int(produto['quantidade'] if produto['quantidade'] is not None else 0)
+            except (KeyError, ValueError, TypeError):
+                quantidade = 0
+            produto_titulo = produto.get('titulo', '') or ''
+        
+        # Verificar se há estoque disponível
+        if quantidade <= 0:
+            cursor.close()
+            conn.close()
+            return jsonify({'erro': 'Estoque insuficiente'}), 400
+        
+        # Diminuir estoque
+        nova_quantidade = quantidade - 1
+        if DATABASE_TYPE == 'postgresql':
+            from datetime import datetime as dt
+            data_atual = dt.now()
+            cursor.execute('''
+                UPDATE produtos 
+                SET quantidade = %s, data_atualizacao = %s
+                WHERE id = %s
+            ''', (nova_quantidade, data_atual, produto_id))
+        else:
+            data_atual = datetime.now().isoformat()
+            cursor.execute('''
+                UPDATE produtos 
+                SET quantidade = ?, data_atualizacao = ?
+                WHERE id = ?
+            ''', (nova_quantidade, data_atual, produto_id))
+        
+        # Criar venda (salvar produto_titulo para preservar mesmo se produto for deletado)
+        if DATABASE_TYPE == 'postgresql':
+            from datetime import datetime as dt
+            data_criacao = dt.now()
+            cursor.execute('''
+                INSERT INTO vendas (produto_id, produto_titulo, valor_venda, valor_compra, data_venda, onde_vendeu, observacoes, data_criacao)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            ''', (produto_id, produto_titulo, valor_venda, valor_compra, data_venda, onde_vendeu, observacoes, data_criacao))
+            venda_id = cursor.fetchone()['id']
+        else:
+            data_criacao = datetime.now().isoformat()
+            cursor.execute('''
+                INSERT INTO vendas (produto_id, produto_titulo, valor_venda, valor_compra, data_venda, onde_vendeu, observacoes, data_criacao)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (produto_id, produto_titulo, valor_venda, valor_compra, data_venda, onde_vendeu, observacoes, data_criacao))
+            venda_id = cursor.lastrowid
         
         conn.commit()
         cursor.close()
         conn.close()
         
-        mensagem = f'{produtos_importados} produto(s) importado(s)'
-        if produtos_atualizados > 0:
-            mensagem += f', {produtos_atualizados} produto(s) atualizado(s)'
-        if erros:
-            mensagem += f'. {len(erros)} erro(s) encontrado(s)'
-        
-        return jsonify({
-            'mensagem': mensagem,
-            'importados': produtos_importados,
-            'atualizados': produtos_atualizados,
-            'erros': erros[:10]  # Limitar a 10 erros
-        }), 200
+        return jsonify({'id': venda_id, 'mensagem': 'Venda registrada com sucesso'}), 201
         
     except Exception as e:
-        return jsonify({'erro': f'Erro ao importar CSV: {str(e)}'}), 500
-
-@app.route('/manifest.json')
-def manifest():
-    """Serve o manifest.json para PWA"""
-    return send_from_directory('static', 'manifest.json', mimetype='application/manifest+json')
-
-@app.route('/sw.js')
-def service_worker():
-    """Serve o service worker"""
-    return send_from_directory('static', 'sw.js', mimetype='application/javascript')
+        import traceback
+        traceback.print_exc()
+        return jsonify({'erro': str(e)}), 500
 
 # Handlers de erro já registrados acima (antes das rotas)
 
 # Para desenvolvimento local e produção
 if __name__ == '__main__':
-    # Porta do ambiente (Vercel, etc) ou padrão 5001
+    # Porta do ambiente (Railway, Render, etc) ou padrão 5001
     port = int(os.getenv('PORT', 5001))
     debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
     app.run(debug=debug, host='0.0.0.0', port=port)

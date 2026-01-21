@@ -3,76 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#667eea">
-    <meta name="description" content="Sistema de controle de estoque para produtos vendidos no Mercado Livre e Shopee">
     <title>Controle de Estoque</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
-    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
 </head>
 <body>
     <div class="container">
         <header>
             <h1><span>📦</span> Controle de Estoque</h1>
             <div style="display: flex; gap: 10px; align-items: center;">
-                <button class="btn btn-primary" onclick="abrirModalCriar()">+ Novo Produto</button>
-                <button class="btn btn-secondary" onclick="atualizarProdutos()" id="btn-refresh" title="Atualizar produtos">
+                <button class="btn btn-primary" onclick="abrirModalCriar()" id="btn-novo-produto" style="display: none;">+ Novo Produto</button>
+                <button class="btn btn-secondary" onclick="atualizarConteudo()" id="btn-refresh" title="Atualizar">
                     🔄 Atualizar
                 </button>
             </div>
         </header>
 
-        <!-- Estatísticas -->
-        <div id="estatisticas" class="estatisticas-container">
-            <div class="estatistica-card">
-                <div class="estatistica-icon">📦</div>
-                <div class="estatistica-info">
-                    <div class="estatistica-valor" id="total-produtos">0</div>
-                    <div class="estatistica-label">Total de Produtos</div>
+        <!-- Abas -->
+        <div class="abas-container">
+            <button class="aba-btn active" onclick="mostrarAba('produtos')" id="aba-produtos">
+                📦 Produtos
+            </button>
+            <button class="aba-btn" onclick="mostrarAba('vendas')" id="aba-vendas">
+                💰 Controle de Vendas
+            </button>
+        </div>
+
+        <!-- Aba Produtos -->
+        <div id="aba-produtos-content" class="aba-content active">
+            <div class="filtros">
+                <div class="filtros-linha">
+                    <input type="text" id="busca" placeholder="🔍 Buscar produtos..." onkeyup="filtrarProdutos()">
+                    <select id="ordenacao" onchange="ordenarProdutos()" class="select-ordenacao">
+                        <option value="recente">📅 Último modificado</option>
+                        <option value="nome">🔤 Nome (A-Z)</option>
+                        <option value="nome-desc">🔤 Nome (Z-A)</option>
+                        <option value="quantidade">📈 Quantidade (maior)</option>
+                        <option value="quantidade-asc">📉 Quantidade (menor)</option>
+                    </select>
                 </div>
             </div>
-            <div class="estatistica-card">
-                <div class="estatistica-icon">📊</div>
-                <div class="estatistica-info">
-                    <div class="estatistica-valor" id="total-estoque">0</div>
-                    <div class="estatistica-label">Total em Estoque</div>
-                </div>
-            </div>
-            <div class="estatistica-card">
-                <div class="estatistica-icon">⚠️</div>
-                <div class="estatistica-info">
-                    <div class="estatistica-valor" id="estoque-baixo">0</div>
-                    <div class="estatistica-label">Estoque Baixo</div>
-                </div>
+
+            <div id="produtos-container" class="produtos-grid">
+                <!-- Produtos serão carregados aqui -->
             </div>
         </div>
 
-        <div class="filtros">
-            <div class="filtros-linha">
-                <input type="text" id="busca" placeholder="🔍 Buscar produtos..." onkeyup="filtrarProdutos()" oninput="filtrarProdutos()">
-                <select id="filtro-categoria" onchange="filtrarProdutos()" class="select-ordenacao">
-                    <option value="">📂 Todas as categorias</option>
-                    <!-- Categorias serão preenchidas dinamicamente -->
-                </select>
-                <select id="ordenacao" onchange="ordenarProdutos()" class="select-ordenacao">
-                    <option value="recente">📅 Último modificado</option>
-                    <option value="nome">🔤 Nome (A-Z)</option>
-                    <option value="nome-desc">🔤 Nome (Z-A)</option>
-                    <option value="quantidade">📈 Quantidade (maior)</option>
-                    <option value="quantidade-asc">📉 Quantidade (menor)</option>
-                </select>
-                <button class="btn btn-secondary" onclick="exportarCSV()" title="Exportar produtos para CSV">
-                    📥 Exportar CSV
-                </button>
-                <button class="btn btn-secondary" onclick="document.getElementById('importar-csv-input').click()" title="Importar produtos de CSV">
-                    📤 Importar CSV
-                </button>
-                <input type="file" id="importar-csv-input" accept=".csv" style="display: none;" onchange="importarCSV(event)">
+        <!-- Aba Vendas -->
+        <div id="aba-vendas-content" class="aba-content" style="display: none;">
+            <div id="vendas-container">
+                <!-- Vendas serão carregadas aqui -->
             </div>
-        </div>
-
-        <div id="produtos-container" class="produtos-grid">
-            <!-- Produtos serão carregados aqui -->
         </div>
 
         <div id="mensagem" class="mensagem"></div>
@@ -84,10 +64,68 @@
         <p>Atualizando...</p>
     </div>
 
-    <!-- Loading Inicial -->
-    <div id="loading-inicial" class="loading-overlay" style="display: flex;">
-        <div class="loading-spinner"></div>
-        <p>Carregando produtos...</p>
+    <!-- Modal Venda -->
+    <div id="modal-venda" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Registrar Venda</h2>
+                <span class="fechar" onclick="fecharModalVenda()">&times;</span>
+            </div>
+            <form id="form-venda" onsubmit="salvarVenda(event)">
+                <input type="hidden" id="venda-produto-id">
+                <input type="hidden" id="venda-produto-titulo">
+                <input type="hidden" id="venda-valor-compra">
+                
+                <div class="form-group">
+                    <label>Produto</label>
+                    <input type="text" id="venda-produto-nome" readonly style="background: #f5f5f5;">
+                </div>
+
+                <div class="form-group">
+                    <label for="venda-valor-venda">💰 Valor de Venda (R$) *</label>
+                    <input type="number" id="venda-valor-venda" step="0.01" min="0.01" required placeholder="0.00">
+                </div>
+
+                <div class="form-group">
+                    <label for="venda-data">📅 Data da Venda *</label>
+                    <input type="date" id="venda-data" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="venda-onde">🛒 Onde Vendeu *</label>
+                    <select id="venda-onde" required>
+                        <option value="">Selecione...</option>
+                        <option value="mercado_livre">🛒 Mercado Livre</option>
+                        <option value="shopee">🛍️ Shopee</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Observações</label>
+                    <div id="venda-observacoes-container">
+                        <!-- Observações dinâmicas -->
+                    </div>
+                    <button type="button" class="btn btn-secondary" onclick="adicionarObservacao()">+ Adicionar Observação</button>
+                </div>
+
+                <div class="form-group" id="venda-resumo" style="padding: 15px; background: #f0f0f0; border-radius: 6px; display: none;">
+                    <strong>Resumo:</strong>
+                    <div style="margin-top: 10px;">
+                        <div>Valor de Compra: <span id="venda-resumo-compra">R$ 0,00</span></div>
+                        <div>Valor de Venda: <span id="venda-resumo-venda">R$ 0,00</span></div>
+                        <div style="margin-top: 5px; font-weight: bold; color: #28a745;">
+                            Lucro: <span id="venda-resumo-lucro">R$ 0,00</span> 
+                            (<span id="venda-resumo-porcentagem">0%</span>)
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="fecharModalVenda()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Registrar Venda</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- Modal Criar/Editar Produto -->
@@ -111,42 +149,21 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="categoria">Categoria</label>
-                    <input type="text" id="categoria" list="categorias-lista" placeholder="Ex: Eletrônicos, Roupas, Casa...">
-                    <datalist id="categorias-lista">
-                        <!-- Categorias serão preenchidas dinamicamente -->
-                    </datalist>
+                    <label for="quantidade">📦 Quantidade em Estoque *</label>
+                    <input type="number" id="quantidade" min="0" value="0" required>
+                    <small style="display: block; color: #666; font-size: 0.85rem; margin-top: 5px;">Quantidade total disponível no estoque</small>
                 </div>
 
                 <div class="form-group">
-                    <label>Quantidade por E-commerce *</label>
-                    <div class="quantidades-ecommerce">
-                        <div class="quantidade-item">
-                            <label for="quantidade_ml" style="display: flex; align-items: center; gap: 8px;">
-                                <span>🛒</span> Mercado Livre
-                            </label>
-                            <input type="number" id="quantidade_ml" min="0" value="0" oninput="calcularQuantidadeTotal()">
-                        </div>
-                        <div class="quantidade-item">
-                            <label for="quantidade_shopee" style="display: flex; align-items: center; gap: 8px;">
-                                <span>🛍️</span> Shopee
-                            </label>
-                            <input type="number" id="quantidade_shopee" min="0" value="0" oninput="calcularQuantidadeTotal()">
-                        </div>
-                    </div>
-                    <div style="margin-top: 10px; padding: 10px; background: #f0f0f0; border-radius: 6px;">
-                        <strong>Quantidade Total: <span id="quantidade-total-display">0</span></strong>
-                        <small style="display: block; color: #666; font-size: 0.85rem; margin-top: 5px;">Calculada automaticamente (ML + Shopee)</small>
-                    </div>
-                    <input type="hidden" id="quantidade" value="0">
+                    <label for="valor_compra">💰 Valor de Compra (R$)</label>
+                    <input type="number" id="valor_compra" step="0.01" min="0" placeholder="0.00">
+                    <small style="display: block; color: #666; font-size: 0.85rem; margin-top: 5px;">Valor que foi pago ao comprar o produto</small>
                 </div>
 
                 <div class="form-group">
                     <label for="imagem-upload">Imagem</label>
                     <input type="file" id="imagem-upload" accept="image/*" onchange="previewImagem(event)">
-                    <div id="imagem-preview" class="imagem-preview">
-                        <p style="color: #999; text-align: center; padding: 20px;">Arraste uma imagem aqui ou clique para selecionar</p>
-                    </div>
+                    <div id="imagem-preview" class="imagem-preview"></div>
                     <input type="hidden" id="imagem">
                 </div>
 
@@ -167,20 +184,6 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-    <script>
-        // Registrar Service Worker para PWA
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
-                    .then((registration) => {
-                        console.log('Service Worker registrado:', registration.scope);
-                    })
-                    .catch((error) => {
-                        console.log('Erro ao registrar Service Worker:', error);
-                    });
-            });
-        }
-    </script>
 </body>
 </html>
 

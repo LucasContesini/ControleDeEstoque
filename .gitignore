@@ -14,7 +14,6 @@ static/uploads/*
 .env
 .env.local
 *.log
-server.log
-vercel.env
-env.local
+configurar_supabase.sh
+VALORES_VARIAVEIS.txt
 

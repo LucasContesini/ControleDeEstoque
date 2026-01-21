@@ -1,37 +1,35 @@
 import os
 from datetime import datetime
-from config import (
-    DATABASE_TYPE, DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD,
-    IS_VERCEL
-)
+
+# Detectar qual banco de dados usar baseado em variável de ambiente
+# Prioriza DATABASE_URL (Supabase) se disponível, senão usa SQLite
+DATABASE_URL = os.getenv('DATABASE_URL', '')
+DATABASE_TYPE_ENV = os.getenv('DATABASE_TYPE', '').lower()
+
+# Se DATABASE_URL estiver configurado, usar PostgreSQL (Supabase)
+# Caso contrário, verificar DATABASE_TYPE ou usar SQLite como fallback
+if DATABASE_URL:
+    DATABASE_TYPE = 'postgresql'
+elif DATABASE_TYPE_ENV == 'postgresql' or os.getenv('DB_HOST', ''):
+    DATABASE_TYPE = 'postgresql'
+else:
+    DATABASE_TYPE = 'sqlite'
 
 if DATABASE_TYPE == 'postgresql':
     import psycopg2
     from psycopg2.extras import RealDictCursor
     
-    # Verificar se há DATABASE_URL (connection string completa) - opcional
-    DATABASE_URL = os.getenv('DATABASE_URL', '')
-    
     if DATABASE_URL:
-        # URL externa/pública (Supabase) - garantir SSL
-        # Se não tiver sslmode na URL, adicionar
-        if 'sslmode=' not in DATABASE_URL:
-            separator = '&' if '?' in DATABASE_URL else '?'
-            DATABASE_CONFIG = f"{DATABASE_URL}{separator}sslmode=require"
-        else:
-            DATABASE_CONFIG = DATABASE_URL
-        
-        # Garantir que está usando porta de pooling (6543)
-        if ':5432' in DATABASE_CONFIG:
-            DATABASE_CONFIG = DATABASE_CONFIG.replace(':5432', ':6543')
+        # Usar connection string se disponível (mais confiável)
+        DATABASE_CONFIG = DATABASE_URL
     else:
-        # Configurações do PostgreSQL usando valores do config.py
+        # Configurações do PostgreSQL via variáveis de ambiente individuais
         DATABASE_CONFIG = {
-            'host': DB_HOST,
-            'port': DB_PORT,  # Já vem como '6543' do config.py
-            'database': DB_NAME,
-            'user': DB_USER,
-            'password': DB_PASSWORD,
+            'host': os.getenv('DB_HOST', 'localhost'),
+            'port': os.getenv('DB_PORT', '5432'),
+            'database': os.getenv('DB_NAME', 'controle_estoque'),
+            'user': os.getenv('DB_USER', 'postgres'),
+            'password': os.getenv('DB_PASSWORD', ''),
             'connect_timeout': 10,  # Timeout de conexão de 10 segundos
             'sslmode': 'require'  # Requer SSL para Supabase
         }
@@ -45,19 +43,9 @@ def init_db():
     if DATABASE_TYPE == 'postgresql':
         # Se DATABASE_CONFIG é string (connection string), usar diretamente
         if isinstance(DATABASE_CONFIG, str):
-            # Garantir que SSL está configurado na connection string
-            conn = psycopg2.connect(
-                DATABASE_CONFIG,
-                connect_timeout=10
-            )
+            conn = psycopg2.connect(DATABASE_CONFIG)
         else:
-            # Garantir SSL e timeout quando usar dict
-            config = dict(DATABASE_CONFIG)
-            if 'sslmode' not in config:
-                config['sslmode'] = 'require'
-            if 'connect_timeout' not in config:
-                config['connect_timeout'] = 10
-            conn = psycopg2.connect(**config)
+            conn = psycopg2.connect(**DATABASE_CONFIG)
         cursor = conn.cursor()
         
         # Criar tabela se não existir
@@ -66,9 +54,8 @@ def init_db():
                 id SERIAL PRIMARY KEY,
                 titulo VARCHAR(255) NOT NULL,
                 descricao TEXT,
-                categoria VARCHAR(100),
-                quantidade_mercado_livre INTEGER NOT NULL DEFAULT 0,
-                quantidade_shopee INTEGER NOT NULL DEFAULT 0,
+                quantidade INTEGER NOT NULL DEFAULT 0,
+                valor_compra DECIMAL(10, 2),
                 imagem VARCHAR(500),
                 especificacoes TEXT,
                 data_criacao TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -84,21 +71,95 @@ def init_db():
         """)
         colunas_existentes = [row[0] for row in cursor.fetchall()]
         
-        if 'quantidade_mercado_livre' not in colunas_existentes:
-            cursor.execute('ALTER TABLE produtos ADD COLUMN quantidade_mercado_livre INTEGER NOT NULL DEFAULT 0')
+        if 'valor_compra' not in colunas_existentes:
+            cursor.execute('ALTER TABLE produtos ADD COLUMN valor_compra DECIMAL(10, 2)')
         
-        if 'quantidade_shopee' not in colunas_existentes:
-            cursor.execute('ALTER TABLE produtos ADD COLUMN quantidade_shopee INTEGER NOT NULL DEFAULT 0')
+        if 'quantidade' not in colunas_existentes:
+            cursor.execute('ALTER TABLE produtos ADD COLUMN quantidade INTEGER NOT NULL DEFAULT 0')
         
-        if 'categoria' not in colunas_existentes:
-            cursor.execute('ALTER TABLE produtos ADD COLUMN categoria VARCHAR(100)')
-        
-        # Migração: remover coluna quantidade se existir (não é mais necessária)
-        if 'quantidade' in colunas_existentes:
+        # Remover colunas antigas se existirem (migração)
+        if 'quantidade_mercado_livre' in colunas_existentes:
             try:
-                cursor.execute('ALTER TABLE produtos DROP COLUMN quantidade')
+                cursor.execute('ALTER TABLE produtos DROP COLUMN quantidade_mercado_livre')
             except:
                 pass  # Ignorar se não conseguir remover
+        
+        if 'quantidade_shopee' in colunas_existentes:
+            try:
+                cursor.execute('ALTER TABLE produtos DROP COLUMN quantidade_shopee')
+            except:
+                pass  # Ignorar se não conseguir remover
+        
+        # Criar tabela de vendas (sem foreign key para preservar vendas mesmo se produto for deletado)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS vendas (
+                id SERIAL PRIMARY KEY,
+                produto_id INTEGER,
+                produto_titulo VARCHAR(255),
+                valor_venda DECIMAL(10, 2) NOT NULL,
+                valor_compra DECIMAL(10, 2) NOT NULL,
+                data_venda DATE NOT NULL,
+                onde_vendeu VARCHAR(20) NOT NULL CHECK (onde_vendeu IN ('mercado_livre', 'shopee')),
+                observacoes TEXT,
+                data_criacao TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Remover foreign key se existir (para garantir que vendas não sejam deletadas)
+        try:
+            cursor.execute("""
+                SELECT constraint_name
+                FROM information_schema.table_constraints
+                WHERE table_name = 'vendas'
+                AND constraint_type = 'FOREIGN KEY'
+            """)
+            constraints = cursor.fetchall()
+            for constraint in constraints:
+                constraint_name = constraint[0] if isinstance(constraint, tuple) else constraint.get('constraint_name', '')
+                if constraint_name:
+                    try:
+                        cursor.execute(f'ALTER TABLE vendas DROP CONSTRAINT {constraint_name}')
+                        print(f"✅ Foreign key {constraint_name} removida (vendas serão preservadas)")
+                    except Exception as e:
+                        print(f"⚠️  Erro ao remover foreign key: {e}")
+        except Exception as e:
+            print(f"⚠️  Erro ao verificar foreign keys: {e}")
+        
+        # Adicionar coluna produto_titulo se não existir (migração)
+        cursor.execute("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name='vendas' AND column_name='produto_titulo'
+        """)
+        if not cursor.fetchone():
+            cursor.execute('ALTER TABLE vendas ADD COLUMN produto_titulo VARCHAR(255)')
+            # Preencher produto_titulo com dados existentes
+            cursor.execute('''
+                UPDATE vendas v
+                SET produto_titulo = p.titulo
+                FROM produtos p
+                WHERE v.produto_id = p.id AND v.produto_titulo IS NULL
+            ''')
+        
+        # Remover foreign key se existir (para garantir que vendas não sejam deletadas)
+        try:
+            cursor.execute("""
+                SELECT constraint_name
+                FROM information_schema.table_constraints
+                WHERE table_name = 'vendas'
+                AND constraint_type = 'FOREIGN KEY'
+            """)
+            constraints = cursor.fetchall()
+            for constraint in constraints:
+                constraint_name = constraint[0] if isinstance(constraint, tuple) else constraint.get('constraint_name', '')
+                if constraint_name:
+                    try:
+                        cursor.execute(f'ALTER TABLE vendas DROP CONSTRAINT {constraint_name}')
+                        print(f"✅ Foreign key {constraint_name} removida (vendas serão preservadas)")
+                    except Exception as e:
+                        print(f"⚠️  Erro ao remover foreign key: {e}")
+        except Exception as e:
+            print(f"⚠️  Erro ao verificar foreign keys: {e}")
         
         conn.commit()
         cursor.close()
@@ -113,9 +174,8 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 titulo TEXT NOT NULL,
                 descricao TEXT,
-                categoria TEXT,
-                quantidade_mercado_livre INTEGER NOT NULL DEFAULT 0,
-                quantidade_shopee INTEGER NOT NULL DEFAULT 0,
+                quantidade INTEGER NOT NULL DEFAULT 0,
+                valor_compra REAL,
                 imagem TEXT,
                 especificacoes TEXT,
                 data_criacao TEXT NOT NULL,
@@ -123,35 +183,53 @@ def init_db():
             )
         ''')
         
-        # Migração: adicionar colunas de quantidade por e-commerce se não existirem
+        # Verificar colunas existentes
         cursor.execute("PRAGMA table_info(produtos)")
         colunas = [coluna[1] for coluna in cursor.fetchall()]
         
-        if 'quantidade_mercado_livre' not in colunas:
+        if 'valor_compra' not in colunas:
             try:
-                cursor.execute('ALTER TABLE produtos ADD COLUMN quantidade_mercado_livre INTEGER NOT NULL DEFAULT 0')
+                cursor.execute('ALTER TABLE produtos ADD COLUMN valor_compra REAL')
             except sqlite3.OperationalError:
                 pass
         
-        if 'quantidade_shopee' not in colunas:
+        if 'quantidade' not in colunas:
             try:
-                cursor.execute('ALTER TABLE produtos ADD COLUMN quantidade_shopee INTEGER NOT NULL DEFAULT 0')
+                cursor.execute('ALTER TABLE produtos ADD COLUMN quantidade INTEGER NOT NULL DEFAULT 0')
             except sqlite3.OperationalError:
                 pass
         
-        if 'categoria' not in colunas:
-            try:
-                cursor.execute('ALTER TABLE produtos ADD COLUMN categoria TEXT')
-            except sqlite3.OperationalError:
-                pass
+        # SQLite não suporta DROP COLUMN diretamente, então apenas ignoramos as colunas antigas
+        # Elas não serão usadas e podem ser removidas manualmente se necessário
         
-        # Migração: remover coluna quantidade se existir (não é mais necessária)
-        if 'quantidade' in colunas:
+        # Criar tabela de vendas (sem foreign key para preservar vendas mesmo se produto for deletado)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS vendas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                produto_id INTEGER,
+                produto_titulo TEXT,
+                valor_venda REAL NOT NULL,
+                valor_compra REAL NOT NULL,
+                data_venda TEXT NOT NULL,
+                onde_vendeu TEXT NOT NULL CHECK (onde_vendeu IN ('mercado_livre', 'shopee')),
+                observacoes TEXT,
+                data_criacao TEXT NOT NULL
+            )
+        ''')
+        
+        # Adicionar coluna produto_titulo se não existir (migração)
+        cursor.execute("PRAGMA table_info(vendas)")
+        colunas = [coluna[1] for coluna in cursor.fetchall()]
+        if 'produto_titulo' not in colunas:
             try:
-                # SQLite não suporta DROP COLUMN diretamente, precisamos recriar a tabela
-                # Mas vamos apenas ignorar a coluna nas queries
-                pass
-            except:
+                cursor.execute('ALTER TABLE vendas ADD COLUMN produto_titulo TEXT')
+                # Preencher produto_titulo com dados existentes
+                cursor.execute('''
+                    UPDATE vendas 
+                    SET produto_titulo = (SELECT titulo FROM produtos WHERE produtos.id = vendas.produto_id)
+                    WHERE produto_titulo IS NULL AND produto_id IS NOT NULL
+                ''')
+            except sqlite3.OperationalError:
                 pass
         
         conn.commit()
@@ -160,96 +238,12 @@ def init_db():
 def get_db():
     """Retorna uma conexão com o banco de dados"""
     if DATABASE_TYPE == 'postgresql':
-        import socket
-        
-        # No Vercel, sempre tentar IPv4 primeiro para evitar problemas com IPv6
-        if IS_VERCEL and isinstance(DATABASE_CONFIG, dict):
-            host = DATABASE_CONFIG.get('host', '')
-            if host and 'supabase.co' in host:
-                try:
-                    # Resolver IPv4 antes de tentar conectar
-                    ipv4 = socket.gethostbyname(host)
-                    config_ipv4 = dict(DATABASE_CONFIG)
-                    config_ipv4['host'] = ipv4
-                    if 'sslmode' not in config_ipv4:
-                        config_ipv4['sslmode'] = 'require'
-                    if 'connect_timeout' not in config_ipv4:
-                        config_ipv4['connect_timeout'] = 10
-                    
-                    # Tentar conectar com IPv4 primeiro
-                    try:
-                        conn = psycopg2.connect(**config_ipv4)
-                        return conn
-                    except psycopg2.OperationalError:
-                        # Se IPv4 falhar, tentar com hostname mesmo
-                        pass
-                except socket.gaierror:
-                    # Se não conseguir resolver IPv4, continuar com hostname
-                    pass
-        
-        # Tentar conexão normal (ou se não for Vercel)
-        attempts = []
-        try:
-            if isinstance(DATABASE_CONFIG, str):
-                conn = psycopg2.connect(DATABASE_CONFIG, connect_timeout=10)
-            else:
-                config = dict(DATABASE_CONFIG)
-                if 'sslmode' not in config:
-                    config['sslmode'] = 'require'
-                if 'connect_timeout' not in config:
-                    config['connect_timeout'] = 10
-                conn = psycopg2.connect(**config)
-            return conn
-        except psycopg2.OperationalError as e:
-            error_msg = str(e)
-            attempts.append(f"Tentativa 1 (normal): {error_msg[:100]}")
-            
-            # Se erro for IPv6 ou "Cannot assign requested address", tentar forçar IPv4
-            if 'Cannot assign requested address' in error_msg or '2600:' in error_msg or 'Network is unreachable' in error_msg:
-                # Abordagem 2: Tentar resolver IPv4 e conectar diretamente
-                try:
-                    if isinstance(DATABASE_CONFIG, dict):
-                        host = DATABASE_CONFIG.get('host', '')
-                        if host and 'supabase.co' in host:
-                            # Resolver IPv4
-                            ipv4 = socket.gethostbyname(host)
-                            config_ipv4 = dict(DATABASE_CONFIG)
-                            config_ipv4['host'] = ipv4
-                            if 'sslmode' not in config_ipv4:
-                                config_ipv4['sslmode'] = 'require'
-                            if 'connect_timeout' not in config_ipv4:
-                                config_ipv4['connect_timeout'] = 10
-                            
-                            conn = psycopg2.connect(**config_ipv4)
-                            return conn
-                except Exception as e2:
-                    attempts.append(f"Tentativa 2 (IPv4 direto): {str(e2)[:100]}")
-            
-            # Se todas as tentativas falharam, retornar erro detalhado
-            current_port = DATABASE_CONFIG.get('port', '?') if isinstance(DATABASE_CONFIG, dict) else '?'
-            
-            suggestion = ""
-            if IS_VERCEL:
-                suggestion = (
-                    f"\n\n💡 O Vercel pode ter problemas com IPv6.\n"
-                    f"O código já tenta IPv4 automaticamente, mas se o problema persistir:\n"
-                    f"1. Verifique se o Supabase permite conexões externas\n"
-                    f"2. Tente usar DATABASE_URL com IPv4 resolvido manualmente\n"
-                    f"3. Verifique os logs do Vercel para mais detalhes"
-                )
-            
-            raise Exception(
-                f"Erro ao conectar ao banco de dados.\n"
-                f"Tentativas realizadas:\n" + "\n".join(f"  - {a}" for a in attempts) + "\n\n"
-                f"Verifique:\n"
-                f"1. Se o Supabase permite conexões externas (Settings → Database → Network Restrictions)\n"
-                f"2. Se as variáveis de ambiente estão configuradas no Vercel\n"
-                f"3. Se está usando porta 6543 (pooling) em vez de 5432 (direto)\n"
-                f"4. Porta atual configurada: {current_port}\n"
-                f"Erro original: {error_msg}{suggestion}"
-            )
-        except Exception as e:
-            raise Exception(f"Erro ao conectar ao banco de dados: {str(e)}")
+        # Se DATABASE_CONFIG é string (connection string), usar diretamente
+        if isinstance(DATABASE_CONFIG, str):
+            conn = psycopg2.connect(DATABASE_CONFIG)
+        else:
+            conn = psycopg2.connect(**DATABASE_CONFIG)
+        return conn
     else:
         conn = sqlite3.connect(DATABASE)
         conn.row_factory = sqlite3.Row
@@ -259,17 +253,13 @@ def produto_para_dict(produto):
     """Converte um produto (Row/Dict) em dicionário"""
     if DATABASE_TYPE == 'postgresql':
         # PostgreSQL retorna dict-like object
-        quantidade_ml = int(produto.get('quantidade_mercado_livre', 0) or 0)
-        quantidade_shopee = int(produto.get('quantidade_shopee', 0) or 0)
-        quantidade_total = quantidade_ml + quantidade_shopee  # Calcular total
+        quantidade = int(produto.get('quantidade', 0) or 0)
         return {
             'id': produto['id'],
             'titulo': produto['titulo'],
             'descricao': produto['descricao'],
-            'categoria': produto.get('categoria', ''),
-            'quantidade': quantidade_total,  # Calculado dinamicamente
-            'quantidade_mercado_livre': quantidade_ml,
-            'quantidade_shopee': quantidade_shopee,
+            'quantidade': quantidade,
+            'valor_compra': float(produto.get('valor_compra', 0) or 0),
             'imagem': produto['imagem'],
             'especificacoes': produto['especificacoes'],
             'data_criacao': produto['data_criacao'].isoformat() if produto['data_criacao'] else '',
@@ -278,36 +268,80 @@ def produto_para_dict(produto):
     else:
         # SQLite
         try:
-            quantidade_ml = int(produto['quantidade_mercado_livre'] if produto['quantidade_mercado_livre'] is not None else 0)
-        except (KeyError, IndexError):
-            quantidade_ml = 0
+            quantidade = int(produto['quantidade'] if produto['quantidade'] is not None else 0)
+        except (KeyError, ValueError, TypeError):
+            quantidade = 0
         
+        # Obter valor_compra de forma segura (SQLite Row não tem .get())
         try:
-            quantidade_shopee = int(produto['quantidade_shopee'] if produto['quantidade_shopee'] is not None else 0)
-        except (KeyError, IndexError):
-            quantidade_shopee = 0
-        
-        quantidade_total = quantidade_ml + quantidade_shopee  # Calcular total
-        
-        # Tentar obter quantidade da coluna antiga se existir (para compatibilidade)
-        try:
-            quantidade_antiga = produto.get('quantidade', None)
-            if quantidade_antiga is not None:
-                # Se a coluna antiga existir, usar ela, senão calcular
-                quantidade_total = int(quantidade_antiga) if quantidade_antiga else quantidade_total
-        except:
-            pass
+            valor_compra = float(produto['valor_compra'] if produto['valor_compra'] is not None else 0)
+        except (KeyError, ValueError, TypeError):
+            valor_compra = 0.0
         
         return {
             'id': produto['id'],
             'titulo': produto['titulo'],
             'descricao': produto['descricao'],
-            'categoria': produto.get('categoria', '') if len(produto) > 8 else '',
-            'quantidade': quantidade_total,  # Calculado dinamicamente
-            'quantidade_mercado_livre': quantidade_ml,
-            'quantidade_shopee': quantidade_shopee,
+            'quantidade': quantidade,
+            'valor_compra': valor_compra,
             'imagem': produto['imagem'],
             'especificacoes': produto['especificacoes'],
             'data_criacao': produto['data_criacao'],
             'data_atualizacao': produto['data_atualizacao']
+        }
+
+def venda_para_dict(venda, produto_titulo=None):
+    """Converte uma venda (Row/Dict) em dicionário"""
+    if DATABASE_TYPE == 'postgresql':
+        valor_venda = float(venda.get('valor_venda', 0) or 0)
+        valor_compra = float(venda.get('valor_compra', 0) or 0)
+        lucro = valor_venda - valor_compra
+        porcentagem_lucro = (lucro / valor_compra * 100) if valor_compra > 0 else 0
+        
+        # Usar produto_titulo da tabela vendas se disponível, senão usar o passado como parâmetro
+        titulo_final = venda.get('produto_titulo') or produto_titulo or 'Produto Deletado'
+        
+        return {
+            'id': venda['id'],
+            'produto_id': venda.get('produto_id'),  # Pode ser NULL se produto foi deletado
+            'produto_titulo': titulo_final,
+            'valor_venda': valor_venda,
+            'valor_compra': valor_compra,
+            'lucro': lucro,
+            'porcentagem_lucro': round(porcentagem_lucro, 2),
+            'data_venda': venda['data_venda'].strftime('%Y-%m-%d') if hasattr(venda['data_venda'], 'strftime') else str(venda['data_venda']).split('T')[0].split(' ')[0],
+            'onde_vendeu': venda['onde_vendeu'],
+            'observacoes': venda.get('observacoes', ''),
+            'data_criacao': venda['data_criacao'].isoformat() if hasattr(venda['data_criacao'], 'isoformat') else str(venda['data_criacao'])
+        }
+    else:
+        # SQLite
+        try:
+            valor_venda = float(venda['valor_venda'] if venda['valor_venda'] is not None else 0)
+        except (KeyError, ValueError, TypeError):
+            valor_venda = 0.0
+        
+        try:
+            valor_compra = float(venda['valor_compra'] if venda['valor_compra'] is not None else 0)
+        except (KeyError, ValueError, TypeError):
+            valor_compra = 0.0
+        
+        lucro = valor_venda - valor_compra
+        porcentagem_lucro = (lucro / valor_compra * 100) if valor_compra > 0 else 0
+        
+        # Usar produto_titulo da tabela vendas se disponível, senão usar o passado como parâmetro
+        titulo_final = venda.get('produto_titulo') or produto_titulo or 'Produto Deletado'
+        
+        return {
+            'id': venda['id'],
+            'produto_id': venda.get('produto_id'),  # Pode ser NULL se produto foi deletado
+            'produto_titulo': titulo_final,
+            'valor_venda': valor_venda,
+            'valor_compra': valor_compra,
+            'lucro': lucro,
+            'porcentagem_lucro': round(porcentagem_lucro, 2),
+            'data_venda': venda['data_venda'].split('T')[0].split(' ')[0] if isinstance(venda['data_venda'], str) else str(venda['data_venda']).split('T')[0].split(' ')[0],
+            'onde_vendeu': venda['onde_vendeu'],
+            'observacoes': venda.get('observacoes', '') or '',
+            'data_criacao': venda['data_criacao']
         }

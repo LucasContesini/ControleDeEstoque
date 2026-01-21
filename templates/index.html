@@ -50,6 +50,11 @@
 
         <!-- Aba Vendas -->
         <div id="aba-vendas-content" class="aba-content" style="display: none;">
+            <div class="filtros">
+                <div class="filtros-linha">
+                    <input type="text" id="busca-vendas" placeholder="🔍 Buscar vendas..." onkeyup="filtrarVendas()" oninput="filtrarVendas()">
+                </div>
+            </div>
             <div id="vendas-container">
                 <!-- Vendas serão carregadas aqui -->
             </div>

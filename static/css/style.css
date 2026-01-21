@@ -70,7 +70,7 @@ header .btn-primary {
     align-items: center;
 }
 
-#busca {
+#busca, #busca-vendas {
     flex: 1;
     padding: 12px;
     border: 2px solid #e0e0e0;
@@ -81,7 +81,7 @@ header .btn-primary {
     -webkit-appearance: none;
 }
 
-#busca:focus {
+#busca:focus, #busca-vendas:focus {
     outline: none;
     border-color: #667eea;
 }
@@ -681,7 +681,7 @@ form {
         gap: 12px;
     }
 
-    #busca {
+    #busca, #busca-vendas {
         width: 100%;
     }
 

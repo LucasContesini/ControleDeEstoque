@@ -5,6 +5,7 @@ let especificacoesCount = 0;
 let ordenacaoAtual = 'recente';
 let abaAtual = 'produtos';
 let vendas = [];
+let vendasFiltradas = [];
 let observacoesCount = 0;
 
 // Imagem placeholder padrão (caixa de papelão com "Sem Foto")
@@ -737,6 +738,11 @@ function mostrarAba(aba) {
     
     // Carregar conteúdo da aba
     if (aba === 'vendas') {
+        // Limpar busca ao trocar para aba de vendas
+        const buscaVendas = document.getElementById('busca-vendas');
+        if (buscaVendas) {
+            buscaVendas.value = '';
+        }
         carregarVendas();
     } else {
         carregarProdutos();
@@ -759,24 +765,136 @@ async function carregarVendas() {
             throw new Error('Erro ao carregar vendas');
         }
         vendas = await response.json();
-        renderizarVendas();
+        vendasFiltradas = [...vendas];
+        filtrarVendas();
     } catch (error) {
         mostrarMensagem('Erro ao carregar vendas: ' + error.message, 'erro');
     }
 }
 
+function filtrarVendas() {
+    const busca = document.getElementById('busca-vendas');
+    if (!busca) {
+        renderizarVendas();
+        return;
+    }
+    
+    const termoBusca = busca.value.toLowerCase().trim();
+    
+    if (termoBusca === '') {
+        vendasFiltradas = [...vendas];
+    } else {
+        vendasFiltradas = vendas.filter(venda => {
+            // Buscar por nome do produto
+            const produtoMatch = venda.produto_titulo && 
+                venda.produto_titulo.toLowerCase().includes(termoBusca);
+            
+            // Buscar por data (formato brasileiro)
+            let dataMatch = false;
+            if (venda.data_venda) {
+                const partesData = venda.data_venda.split('T')[0].split('-');
+                if (partesData.length === 3) {
+                    const dataLocal = new Date(parseInt(partesData[0]), parseInt(partesData[1]) - 1, parseInt(partesData[2]));
+                    const dataFormatada = dataLocal.toLocaleDateString('pt-BR');
+                    dataMatch = dataFormatada.includes(termoBusca);
+                }
+            }
+            
+            // Buscar por onde vendeu
+            const ondeVendeu = venda.onde_vendeu === 'mercado_livre' ? 'mercado livre' : 'shopee';
+            const ondeMatch = ondeVendeu.includes(termoBusca);
+            
+            // Buscar por observações
+            const obsMatch = venda.observacoes && 
+                venda.observacoes.toLowerCase().includes(termoBusca);
+            
+            // Buscar por valores (R$ 100, 100.00, 100,50, etc)
+            // Normalizar termo de busca: aceitar tanto ponto quanto vírgula
+            const termoNormalizado = termoBusca.replace(',', '.');
+            const termoSemSeparador = termoBusca.replace(/[,.]/g, '');
+            
+            // Função auxiliar para normalizar valores para comparação
+            const normalizarValor = (valor) => {
+                if (!valor) return '';
+                // Converter para string e normalizar para ponto
+                const str = valor.toString();
+                // Se for número, formatar com 2 casas decimais
+                const num = parseFloat(str);
+                if (!isNaN(num)) {
+                    return num.toFixed(2).replace('.', '');
+                }
+                return str.replace(/[,.]/g, '');
+            };
+            
+            // Valor de venda: buscar tanto com ponto quanto com vírgula
+            let valorVendaMatch = false;
+            if (venda.valor_venda) {
+                const valorNormalizado = normalizarValor(venda.valor_venda);
+                const valorPonto = venda.valor_venda.toFixed(2);
+                const valorVirgula = valorPonto.replace('.', ',');
+                valorVendaMatch = valorNormalizado.includes(termoSemSeparador) ||
+                                 valorPonto.includes(termoNormalizado) || 
+                                 valorVirgula.includes(termoBusca) ||
+                                 valorPonto.includes(termoBusca.replace(',', '.'));
+            }
+            
+            // Valor de compra: buscar tanto com ponto quanto com vírgula
+            let valorCompraMatch = false;
+            if (venda.valor_compra) {
+                const valorNormalizado = normalizarValor(venda.valor_compra);
+                const valorPonto = venda.valor_compra.toFixed(2);
+                const valorVirgula = valorPonto.replace('.', ',');
+                valorCompraMatch = valorNormalizado.includes(termoSemSeparador) ||
+                                  valorPonto.includes(termoNormalizado) || 
+                                  valorVirgula.includes(termoBusca) ||
+                                  valorPonto.includes(termoBusca.replace(',', '.'));
+            }
+            
+            // Buscar por lucro (valor em reais)
+            const lucro = venda.lucro || 0;
+            const lucroNormalizado = normalizarValor(lucro);
+            const lucroPonto = lucro.toFixed(2);
+            const lucroVirgula = lucroPonto.replace('.', ',');
+            const lucroMatch = lucroNormalizado.includes(termoSemSeparador) ||
+                              lucroPonto.includes(termoNormalizado) || 
+                              lucroVirgula.includes(termoBusca) ||
+                              lucroPonto.includes(termoBusca.replace(',', '.'));
+            
+            // Buscar por porcentagem de lucro
+            const porcentagemLucro = venda.porcentagem_lucro || 0;
+            const porcentagemNormalizada = normalizarValor(porcentagemLucro);
+            const porcentagemPonto = porcentagemLucro.toFixed(2);
+            const porcentagemVirgula = porcentagemPonto.replace('.', ',');
+            const porcentagemMatch = porcentagemNormalizada.includes(termoSemSeparador) ||
+                                    porcentagemPonto.includes(termoNormalizado) || 
+                                    porcentagemVirgula.includes(termoBusca) ||
+                                    porcentagemPonto.includes(termoBusca.replace(',', '.')) ||
+                                    (`${porcentagemLucro >= 0 ? '+' : ''}${porcentagemVirgula}%`).toLowerCase().includes(termoBusca);
+            
+            return produtoMatch || dataMatch || ondeMatch || obsMatch || 
+                   valorVendaMatch || valorCompraMatch || lucroMatch || porcentagemMatch;
+        });
+    }
+    
+    renderizarVendas();
+}
+
 function renderizarVendas() {
     const container = document.getElementById('vendas-container');
     
-    if (vendas.length === 0) {
-        container.innerHTML = '<div class="vazio">Nenhuma venda registrada ainda</div>';
+    if (vendasFiltradas.length === 0) {
+        if (vendas.length === 0) {
+            container.innerHTML = '<div class="vazio">Nenhuma venda registrada ainda</div>';
+        } else {
+            container.innerHTML = '<div class="vazio">Nenhuma venda encontrada com o termo buscado</div>';
+        }
         return;
     }
     
     // Agrupar vendas por mês/ano e calcular lucro total
     const vendasPorMes = {};
     
-    vendas.forEach(venda => {
+    vendasFiltradas.forEach(venda => {
         // Obter mês/ano da venda
         let dataVenda;
         if (venda.data_venda) {

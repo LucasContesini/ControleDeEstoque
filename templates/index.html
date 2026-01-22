@@ -192,6 +192,66 @@
         </div>
     </div>
 
+    <!-- Script inline para verificação de versão - funciona mesmo com HTML antigo em cache -->
+    <script>
+    (function() {
+        // Versão do HTML atual (muda a cada requisição)
+        const htmlVersion = '{{ html_timestamp }}';
+        const appVersion = '{{ cache_version }}';
+        
+        // Verificar se há versão antiga salva
+        const storedHtmlVersion = localStorage.getItem('html_version');
+        const storedAppVersion = localStorage.getItem('app_version');
+        
+        // Se detectar versão diferente, mostrar banner IMEDIATAMENTE
+        if (storedHtmlVersion && storedHtmlVersion !== htmlVersion) {
+            // Criar banner antes de qualquer outro script carregar
+            const banner = document.createElement('div');
+            banner.id = 'version-update-banner-inline';
+            banner.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #ff9800; color: white; padding: 12px; text-align: center; z-index: 99999; box-shadow: 0 2px 4px rgba(0,0,0,0.2);';
+            banner.innerHTML = '<span>🔄 Nova versão disponível!</span> <button onclick="location.reload(true)" style="margin-left: 15px; padding: 6px 12px; background: white; color: #ff9800; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Atualizar Agora</button> <button onclick="this.parentElement.remove()" style="margin-left: 10px; background: transparent; color: white; border: 1px solid white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">✕</button>';
+            if (document.body) {
+                document.body.insertBefore(banner, document.body.firstChild);
+            } else {
+                document.addEventListener('DOMContentLoaded', function() {
+                    document.body.insertBefore(banner, document.body.firstChild);
+                });
+            }
+        }
+        
+        // Salvar versões atuais
+        localStorage.setItem('html_version', htmlVersion);
+        localStorage.setItem('app_version', appVersion);
+        
+        // Verificar periodicamente (a cada 15 segundos - muito frequente)
+        setInterval(function() {
+            fetch('/?check_version=1&_=' + Date.now(), { 
+                cache: 'no-store',
+                headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+            })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (data && data.app_version) {
+                    const stored = localStorage.getItem('app_version');
+                    if (stored && stored !== data.app_version) {
+                        if (!document.getElementById('version-update-banner-inline')) {
+                            const b = document.createElement('div');
+                            b.id = 'version-update-banner-inline';
+                            b.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #ff9800; color: white; padding: 12px; text-align: center; z-index: 99999; box-shadow: 0 2px 4px rgba(0,0,0,0.2);';
+                            b.innerHTML = '<span>🔄 Nova versão disponível!</span> <button onclick="location.reload(true)" style="margin-left: 15px; padding: 6px 12px; background: white; color: #ff9800; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Atualizar Agora</button> <button onclick="this.parentElement.remove()" style="margin-left: 10px; background: transparent; color: white; border: 1px solid white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">✕</button>';
+                            if (document.body) {
+                                document.body.insertBefore(b, document.body.firstChild);
+                            }
+                        }
+                        localStorage.setItem('app_version', data.app_version);
+                    }
+                }
+            })
+            .catch(() => {});
+        }, 15000);
+    })();
+    </script>
+
     <!-- Carregar version.js primeiro - sempre sem cache, funciona mesmo com HTML antigo -->
     <script src="/version.js?_={{ html_timestamp }}"></script>
     <!-- app.js com timestamp único para forçar reload mesmo com HTML antigo -->

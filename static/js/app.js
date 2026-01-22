@@ -37,7 +37,7 @@
                 if (data && data.app_version) {
                     const storedVersion = localStorage.getItem('app_version');
                     const storedScriptVersion = localStorage.getItem('script_version');
-                    const currentScriptVersion = '2026-01-22-v2';
+                    const currentScriptVersion = '2026-01-22-v3';
                     
                     // Se o script mudou, sempre mostrar banner
                     if (storedScriptVersion && storedScriptVersion !== currentScriptVersion) {

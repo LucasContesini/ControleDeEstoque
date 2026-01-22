@@ -147,11 +147,15 @@ def index():
     if request.args.get('check_version'):
         return jsonify({'app_version': cache_version})
     
-    response = make_response(render_template('index.html', cache_version=cache_version))
+    # Adicionar timestamp único para forçar atualização do HTML
+    html_timestamp = str(int(time.time()))
+    response = make_response(render_template('index.html', cache_version=cache_version, html_timestamp=html_timestamp))
     # Garantir headers anti-cache
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
+    # Adicionar header ETag único para forçar revalidação
+    response.headers['ETag'] = f'"{html_timestamp}"'
     return response
 
 @app.route('/api/produtos', methods=['GET'])

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, make_response
 from werkzeug.utils import secure_filename
 import os
 import json
@@ -122,6 +122,16 @@ def handle_exception(e):
     # Caso contrário, deixar o Flask tratar normalmente
     raise
 
+# Middleware para adicionar headers anti-cache em respostas HTML
+@app.after_request
+def add_no_cache_headers(response):
+    """Adiciona headers para desabilitar cache do navegador em HTML"""
+    if response.content_type and 'text/html' in response.content_type:
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
 @app.route('/')
 def index():
     """Página principal"""
@@ -130,7 +140,12 @@ def index():
     # Cache busting: usar variável de ambiente do Vercel ou timestamp simples
     import time
     cache_version = os.getenv('VERCEL_GIT_COMMIT_SHA', '')[:8] if os.getenv('VERCEL_GIT_COMMIT_SHA') else str(int(time.time()))
-    return render_template('index.html', cache_version=cache_version)
+    response = make_response(render_template('index.html', cache_version=cache_version))
+    # Garantir headers anti-cache
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @app.route('/api/produtos', methods=['GET'])
 def listar_produtos():

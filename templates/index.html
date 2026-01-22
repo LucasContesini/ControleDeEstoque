@@ -193,8 +193,9 @@
     </div>
 
     <!-- Carregar version.js primeiro - sempre sem cache, funciona mesmo com HTML antigo -->
-    <script src="/version.js?_={{ cache_version }}"></script>
-    <script src="{{ url_for('static', filename='js/app.js') }}?v={{ cache_version }}"></script>
+    <script src="/version.js?_={{ html_timestamp }}"></script>
+    <!-- app.js com timestamp único para forçar reload mesmo com HTML antigo -->
+    <script src="{{ url_for('static', filename='js/app.js') }}?v={{ html_timestamp }}&t={{ html_timestamp }}"></script>
 </body>
 </html>
 

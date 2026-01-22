@@ -144,7 +144,9 @@ def index():
     import time
     # Usar timestamp arredondado para minutos (muda a cada minuto)
     # Isso força atualização mesmo sem mudanças no código
-    cache_version = str(int(time.time()) // 60)  # Muda a cada minuto
+    # Adicionar timestamp de deploy para forçar atualização após purge
+    deploy_timestamp = os.getenv('VERCEL_DEPLOYMENT_ID', str(int(time.time())))
+    cache_version = f"{str(int(time.time()) // 60)}-{deploy_timestamp[:8]}"  # Muda a cada minuto + deploy
     # HTML timestamp muda a cada requisição para detectar atualizações mais rapidamente
     html_timestamp = str(int(time.time()))  # Timestamp único por requisição
     

@@ -1,3 +1,75 @@
+// Verificação de versão no app.js - funciona mesmo com HTML antigo
+(function() {
+    // Verificar versão ao carregar (não intrusivo - apenas mostra banner)
+    fetch('/?check_version=1&_=' + Date.now(), { 
+        cache: 'no-store',
+        headers: { 
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+        }
+    })
+        .then(response => {
+            if (!response.ok) return null;
+            return response.json();
+        })
+        .then(data => {
+            if (data && data.app_version) {
+                const storedVersion = localStorage.getItem('app_version');
+                if (storedVersion && storedVersion !== data.app_version) {
+                    // Mostrar banner se ainda não estiver visível
+                    if (!document.getElementById('version-update-banner')) {
+                        const banner = document.createElement('div');
+                        banner.id = 'version-update-banner';
+                        banner.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #ff9800; color: white; padding: 12px; text-align: center; z-index: 10000; box-shadow: 0 2px 4px rgba(0,0,0,0.2);';
+                        banner.innerHTML = `
+                            <span>🔄 Nova versão disponível!</span>
+                            <button onclick="location.reload(true)" style="margin-left: 15px; padding: 6px 12px; background: white; color: #ff9800; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Atualizar Agora</button>
+                            <button onclick="this.parentElement.remove()" style="margin-left: 10px; background: transparent; color: white; border: 1px solid white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">✕</button>
+                        `;
+                        document.body.insertBefore(banner, document.body.firstChild);
+                    }
+                }
+                localStorage.setItem('app_version', data.app_version);
+            }
+        })
+        .catch(() => {});
+    
+    // Verificar periodicamente (a cada 60 segundos - não intrusivo)
+    setInterval(function() {
+        fetch('/?check_version=1&_=' + Date.now(), { 
+            cache: 'no-store',
+            headers: { 
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
+        })
+            .then(response => {
+                if (!response.ok) return null;
+                return response.json();
+            })
+            .then(data => {
+                if (data && data.app_version) {
+                    const storedVersion = localStorage.getItem('app_version');
+                    if (storedVersion && storedVersion !== data.app_version) {
+                        if (!document.getElementById('version-update-banner')) {
+                            const banner = document.createElement('div');
+                            banner.id = 'version-update-banner';
+                            banner.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #ff9800; color: white; padding: 12px; text-align: center; z-index: 10000; box-shadow: 0 2px 4px rgba(0,0,0,0.2);';
+                            banner.innerHTML = `
+                                <span>🔄 Nova versão disponível!</span>
+                                <button onclick="location.reload(true)" style="margin-left: 15px; padding: 6px 12px; background: white; color: #ff9800; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Atualizar Agora</button>
+                                <button onclick="this.parentElement.remove()" style="margin-left: 10px; background: transparent; color: white; border: 1px solid white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">✕</button>
+                            `;
+                            document.body.insertBefore(banner, document.body.firstChild);
+                        }
+                        localStorage.setItem('app_version', data.app_version);
+                    }
+                }
+            })
+            .catch(() => {});
+    }, 60000);
+})();
+
 let produtos = [];
 let produtosFiltrados = [];
 let modoEdicao = false;

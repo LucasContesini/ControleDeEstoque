@@ -150,7 +150,18 @@ def index():
     
     # Se for check de versão, retornar apenas a versão
     if request.args.get('check_version'):
-        return jsonify({'app_version': cache_version})
+        response = jsonify({
+            'app_version': cache_version,
+            'html_timestamp': html_timestamp,
+            'timestamp': int(time.time())
+        })
+        # Headers anti-cache para garantir que não seja cacheado
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0'
+        response.headers['CDN-Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+        response.headers['Vercel-CDN-Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
     
     # Adicionar timestamp único para forçar atualização do HTML
     html_timestamp = str(int(time.time()))

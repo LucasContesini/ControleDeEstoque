@@ -64,83 +64,69 @@
         fetchOptions.headers['X-Requested-With'] = 'XMLHttpRequest';
     }
     
-    fetch('/?check_version=1&_=' + Date.now() + '&_mobile=' + (isMobile ? '1' : '0'), fetchOptions)
-        .then(response => {
-            if (!response.ok) return null;
-            return response.json();
-        })
-        .then(data => {
-            if (data && data.app_version) {
-                const storedVersion = localStorage.getItem('app_version');
-                if (storedVersion && storedVersion !== data.app_version) {
-                    console.log('Versão mudou:', storedVersion, '->', data.app_version);
-                    forcarAtualizacao();
-                    return; // Não continuar execução
+    // Função para verificar versão
+    function verificarVersao() {
+        return fetch('/?check_version=1&_=' + Date.now() + '&_mobile=' + (isMobile ? '1' : '0') + '&_r=' + Math.random(), fetchOptions)
+            .then(response => {
+                if (!response.ok) return null;
+                return response.json();
+            })
+            .then(data => {
+                if (data && data.app_version) {
+                    const storedVersion = localStorage.getItem('app_version');
+                    const storedHtmlTimestamp = localStorage.getItem('html_timestamp');
+                    
+                    // Verificar se versão mudou
+                    if (storedVersion && storedVersion !== data.app_version) {
+                        console.log('Versão mudou:', storedVersion, '->', data.app_version);
+                        forcarAtualizacao();
+                        return true; // Indica que precisa atualizar
+                    }
+                    
+                    // Verificar se HTML timestamp mudou (mudança mais recente)
+                    if (data.html_timestamp && storedHtmlTimestamp && storedHtmlTimestamp !== data.html_timestamp) {
+                        console.log('HTML atualizado:', storedHtmlTimestamp, '->', data.html_timestamp);
+                        forcarAtualizacao();
+                        return true; // Indica que precisa atualizar
+                    }
+                    
+                    // Salvar versões atuais
+                    localStorage.setItem('app_version', data.app_version);
+                    if (data.html_timestamp) {
+                        localStorage.setItem('html_timestamp', data.html_timestamp);
+                    }
                 }
-                // Salvar versão atual
-                localStorage.setItem('app_version', data.app_version);
-            }
-        })
-        .catch(() => {}); // Ignorar erros silenciosamente
+                return false; // Não precisa atualizar
+            })
+            .catch(() => {
+                return false; // Ignorar erros silenciosamente
+            });
+    }
+    
+    // Verificar versão imediatamente ao carregar o JS
+    verificarVersao().then(needsUpdate => {
+        if (needsUpdate) {
+            // Não continuar execução se precisa atualizar
+            return;
+        }
+    });
     
     // Verificar periodicamente (a cada 5 segundos para mobile, 10 para desktop)
     const intervalo = isMobile ? 5000 : 10000;
     setInterval(function() {
-        fetch('/?check_version=1&_=' + Date.now() + '&_mobile=' + (isMobile ? '1' : '0'), fetchOptions)
-            .then(response => {
-                if (!response.ok) return null;
-                return response.json();
-            })
-            .then(data => {
-                if (data && data.app_version) {
-                    const storedVersion = localStorage.getItem('app_version');
-                    if (storedVersion && storedVersion !== data.app_version) {
-                        console.log('Nova versão detectada:', data.app_version);
-                        forcarAtualizacao();
-                    }
-                }
-            })
-            .catch(() => {});
+        verificarVersao();
     }, intervalo);
     
     // Verificar quando a página ganha foco
     window.addEventListener('focus', function() {
-        fetch('/?check_version=1&_=' + Date.now() + '&_mobile=' + (isMobile ? '1' : '0'), fetchOptions)
-            .then(response => {
-                if (!response.ok) return null;
-                return response.json();
-            })
-            .then(data => {
-                if (data && data.app_version) {
-                    const storedVersion = localStorage.getItem('app_version');
-                    if (storedVersion && storedVersion !== data.app_version) {
-                        console.log('Nova versão detectada ao focar:', data.app_version);
-                        forcarAtualizacao();
-                    }
-                }
-            })
-            .catch(() => {});
+        verificarVersao();
     });
     
     // Para mobile: também verificar quando a página fica visível (volta do background)
     if (isMobile && document.visibilityState) {
         document.addEventListener('visibilitychange', function() {
             if (document.visibilityState === 'visible') {
-                fetch('/?check_version=1&_=' + Date.now() + '&_mobile=1', fetchOptions)
-                    .then(response => {
-                        if (!response.ok) return null;
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data && data.app_version) {
-                            const storedVersion = localStorage.getItem('app_version');
-                            if (storedVersion && storedVersion !== data.app_version) {
-                                console.log('Nova versão detectada ao voltar:', data.app_version);
-                                forcarAtualizacao();
-                            }
-                        }
-                    })
-                    .catch(() => {});
+                verificarVersao();
             }
         });
     }

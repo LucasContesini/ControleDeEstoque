@@ -147,15 +147,23 @@ def index():
     # Se não tiver query parameter de versão, redirecionar com versão única
     # Isso força navegador mobile a buscar HTML novo mesmo com cache
     if not request.args.get('_v'):
-        deploy_timestamp = os.getenv('VERCEL_DEPLOYMENT_ID', str(int(time.time())))
-        version_param = f"{str(int(time.time()) // 60)}-{deploy_timestamp[:8]}"
+        deploy_timestamp = os.getenv('VERCEL_DEPLOYMENT_ID') or os.getenv('VERCEL_GIT_COMMIT_SHA') or 'stable'
+        if deploy_timestamp == 'stable':
+            version_param = str(int(time.time()) // 60)
+        else:
+            version_param = f"{str(int(time.time()) // 60)}-{deploy_timestamp[:8]}"
         return redirect(f'/?_v={version_param}', code=302)
     
     # Usar timestamp arredondado para minutos (muda a cada minuto)
     # Isso força atualização mesmo sem mudanças no código
     # Adicionar timestamp de deploy para forçar atualização após purge
-    deploy_timestamp = os.getenv('VERCEL_DEPLOYMENT_ID', str(int(time.time())))
-    cache_version = f"{str(int(time.time()) // 60)}-{deploy_timestamp[:8]}"  # Muda a cada minuto + deploy
+    # IMPORTANTE: Se VERCEL_DEPLOYMENT_ID não existir, usar hash do commit ou timestamp estável
+    deploy_timestamp = os.getenv('VERCEL_DEPLOYMENT_ID') or os.getenv('VERCEL_GIT_COMMIT_SHA') or 'stable'
+    # Se não tiver deploy ID, usar apenas timestamp de minutos (estável por minuto)
+    if deploy_timestamp == 'stable':
+        cache_version = str(int(time.time()) // 60)  # Muda apenas a cada minuto
+    else:
+        cache_version = f"{str(int(time.time()) // 60)}-{deploy_timestamp[:8]}"  # Muda a cada minuto + deploy
     # HTML timestamp muda a cada requisição para detectar atualizações mais rapidamente
     html_timestamp = str(int(time.time()))  # Timestamp único por requisição
     
@@ -188,7 +196,11 @@ def index():
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Last-Modified'] = time.strftime('%a, %d %b %Y %H:%M:%S GMT', time.gmtime())
     # ETag único que muda sempre para forçar revalidação
-    response.headers['ETag'] = f'"{html_timestamp}-{deploy_timestamp[:8]}"'
+    deploy_timestamp_for_etag = os.getenv('VERCEL_DEPLOYMENT_ID') or os.getenv('VERCEL_GIT_COMMIT_SHA') or 'stable'
+    if deploy_timestamp_for_etag != 'stable':
+        response.headers['ETag'] = f'"{html_timestamp}-{deploy_timestamp_for_etag[:8]}"'
+    else:
+        response.headers['ETag'] = f'"{html_timestamp}"'
     # Vary header para garantir que cache seja específico
     response.headers['Vary'] = 'Accept, Accept-Encoding'
     return response

@@ -567,6 +567,87 @@ def debug_cache():
     }
     return jsonify(cache_info)
 
+@app.route('/version.js')
+def version_js():
+    """Arquivo JavaScript que sempre verifica versão - carregado sem cache"""
+    import time
+    cache_version = str(int(time.time()) // 60)
+    html_timestamp = str(int(time.time()))
+    
+    js_content = f"""
+(function() {{
+    const currentVersion = '{cache_version}';
+    const htmlTimestamp = '{html_timestamp}';
+    
+    // Verificar versão armazenada
+    const storedVersion = localStorage.getItem('app_version');
+    const storedHtmlTimestamp = localStorage.getItem('html_timestamp');
+    
+    // Se detectar versão diferente, mostrar aviso
+    if (storedVersion && storedVersion !== currentVersion) {{
+        if (!document.getElementById('version-update-banner')) {{
+            const banner = document.createElement('div');
+            banner.id = 'version-update-banner';
+            banner.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #ff9800; color: white; padding: 12px; text-align: center; z-index: 10000; box-shadow: 0 2px 4px rgba(0,0,0,0.2);';
+            banner.innerHTML = `
+                <span>🔄 Nova versão disponível!</span>
+                <button onclick="location.reload(true)" style="margin-left: 15px; padding: 6px 12px; background: white; color: #ff9800; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Atualizar Agora</button>
+                <button onclick="this.parentElement.remove()" style="margin-left: 10px; background: transparent; color: white; border: 1px solid white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">✕</button>
+            `;
+            document.body.insertBefore(banner, document.body.firstChild);
+        }}
+    }}
+    
+    // Salvar versões atuais
+    localStorage.setItem('app_version', currentVersion);
+    localStorage.setItem('html_timestamp', htmlTimestamp);
+    
+    // Verificar periodicamente (a cada 60 segundos)
+    setInterval(function() {{
+        fetch('/?check_version=1&_=' + Date.now(), {{ 
+            cache: 'no-store',
+            headers: {{ 
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }}
+        }})
+            .then(response => {{
+                if (!response.ok) return null;
+                return response.json();
+            }})
+            .then(data => {{
+                if (data && data.app_version) {{
+                    const storedVersion = localStorage.getItem('app_version');
+                    if (storedVersion && storedVersion !== data.app_version) {{
+                        if (!document.getElementById('version-update-banner')) {{
+                            const banner = document.createElement('div');
+                            banner.id = 'version-update-banner';
+                            banner.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #ff9800; color: white; padding: 12px; text-align: center; z-index: 10000; box-shadow: 0 2px 4px rgba(0,0,0,0.2);';
+                            banner.innerHTML = `
+                                <span>🔄 Nova versão disponível!</span>
+                                <button onclick="location.reload(true)" style="margin-left: 15px; padding: 6px 12px; background: white; color: #ff9800; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Atualizar Agora</button>
+                                <button onclick="this.parentElement.remove()" style="margin-left: 10px; background: transparent; color: white; border: 1px solid white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">✕</button>
+                            `;
+                            document.body.insertBefore(banner, document.body.firstChild);
+                        }}
+                        localStorage.setItem('app_version', data.app_version);
+                    }}
+                }}
+            }})
+            .catch(() => {{}});
+    }}, 60000);
+}})();
+"""
+    response = make_response(js_content, 200)
+    response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+    # Headers anti-cache para garantir que sempre seja buscado
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0'
+    response.headers['CDN-Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Vercel-CDN-Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
 @app.route('/api/vendas', methods=['GET'])
 def listar_vendas():
     """Lista todas as vendas ordenadas por data (mais recente primeiro)"""

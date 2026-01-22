@@ -192,73 +192,9 @@
         </div>
     </div>
 
+    <!-- Carregar version.js primeiro - sempre sem cache, funciona mesmo com HTML antigo -->
+    <script src="/version.js?_={{ cache_version }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}?v={{ cache_version }}"></script>
-    <script>
-        // Verificação discreta de versão - apenas mostra aviso, não força refresh
-        (function() {
-            const currentVersion = '{{ cache_version }}';
-            const htmlTimestamp = '{{ html_timestamp }}';
-            
-            // Verificar versão armazenada (se houver)
-            const storedVersion = localStorage.getItem('app_version');
-            const storedHtmlTimestamp = localStorage.getItem('html_timestamp');
-            
-            // Se detectar versão diferente, mostrar aviso discreto
-            if (storedVersion && storedVersion !== currentVersion) {
-                // Criar banner de aviso no topo da página
-                const banner = document.createElement('div');
-                banner.id = 'version-update-banner';
-                banner.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #ff9800; color: white; padding: 12px; text-align: center; z-index: 10000; box-shadow: 0 2px 4px rgba(0,0,0,0.2);';
-                banner.innerHTML = `
-                    <span>🔄 Nova versão disponível!</span>
-                    <button onclick="location.reload(true)" style="margin-left: 15px; padding: 6px 12px; background: white; color: #ff9800; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Atualizar Agora</button>
-                    <button onclick="this.parentElement.remove()" style="margin-left: 10px; background: transparent; color: white; border: 1px solid white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">✕</button>
-                `;
-                document.body.insertBefore(banner, document.body.firstChild);
-            }
-            
-            // Salvar versões atuais
-            localStorage.setItem('app_version', currentVersion);
-            localStorage.setItem('html_timestamp', htmlTimestamp);
-            
-            // Verificar periodicamente (a cada 60 segundos - não intrusivo)
-            setInterval(function() {
-                fetch('/?check_version=1&_=' + Date.now(), { 
-                    cache: 'no-store',
-                    headers: { 
-                        'Cache-Control': 'no-cache',
-                        'Pragma': 'no-cache'
-                    }
-                })
-                    .then(response => {
-                        if (!response.ok) return null;
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data && data.app_version) {
-                            const storedVersion = localStorage.getItem('app_version');
-                            if (storedVersion && storedVersion !== data.app_version) {
-                                // Mostrar banner se ainda não estiver visível
-                                if (!document.getElementById('version-update-banner')) {
-                                    const banner = document.createElement('div');
-                                    banner.id = 'version-update-banner';
-                                    banner.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #ff9800; color: white; padding: 12px; text-align: center; z-index: 10000; box-shadow: 0 2px 4px rgba(0,0,0,0.2);';
-                                    banner.innerHTML = `
-                                        <span>🔄 Nova versão disponível!</span>
-                                        <button onclick="location.reload(true)" style="margin-left: 15px; padding: 6px 12px; background: white; color: #ff9800; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Atualizar Agora</button>
-                                        <button onclick="this.parentElement.remove()" style="margin-left: 10px; background: transparent; color: white; border: 1px solid white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">✕</button>
-                                    `;
-                                    document.body.insertBefore(banner, document.body.firstChild);
-                                }
-                                // Atualizar versão armazenada
-                                localStorage.setItem('app_version', data.app_version);
-                            }
-                        }
-                    })
-                    .catch(() => {});
-            }, 60000); // Verificar a cada 60 segundos (não intrusivo)
-        })();
-    </script>
 </body>
 </html>
 

@@ -193,6 +193,40 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/app.js') }}?v={{ cache_version }}"></script>
+    <script>
+        // Forçar reload se detectar versão antiga em cache
+        (function() {
+            const currentVersion = '{{ cache_version }}';
+            const storedVersion = localStorage.getItem('app_version');
+            
+            if (storedVersion && storedVersion !== currentVersion) {
+                // Versão mudou, limpar cache e recarregar
+                localStorage.clear();
+                sessionStorage.clear();
+                location.reload(true);
+            } else {
+                // Salvar versão atual
+                localStorage.setItem('app_version', currentVersion);
+            }
+            
+            // Verificar periodicamente se há nova versão (a cada 30 segundos)
+            setInterval(function() {
+                fetch('/?check_version=1&_=' + Date.now(), { 
+                    cache: 'no-store',
+                    headers: { 'Cache-Control': 'no-cache' }
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.app_version && data.app_version !== currentVersion) {
+                            localStorage.clear();
+                            sessionStorage.clear();
+                            location.reload(true);
+                        }
+                    })
+                    .catch(() => {}); // Ignorar erros
+            }, 30000);
+        })();
+    </script>
 </body>
 </html>
 

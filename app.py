@@ -137,9 +137,16 @@ def index():
     """Página principal"""
     # Não inicializar banco na página principal para evitar erros
     # O banco será inicializado quando necessário nas rotas de API
-    # Cache busting: usar variável de ambiente do Vercel ou timestamp simples
+    # Cache busting agressivo: timestamp que muda a cada minuto para forçar atualização
     import time
-    cache_version = os.getenv('VERCEL_GIT_COMMIT_SHA', '')[:8] if os.getenv('VERCEL_GIT_COMMIT_SHA') else str(int(time.time()))
+    # Usar timestamp arredondado para minutos (muda a cada minuto)
+    # Isso força atualização mesmo sem mudanças no código
+    cache_version = str(int(time.time()) // 60)  # Muda a cada minuto
+    
+    # Se for check de versão, retornar apenas a versão
+    if request.args.get('check_version'):
+        return jsonify({'app_version': cache_version})
+    
     response = make_response(render_template('index.html', cache_version=cache_version))
     # Garantir headers anti-cache
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'

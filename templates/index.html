@@ -216,15 +216,19 @@
         
         // Verificar se há versão antiga salva
         const storedAppVersion = localStorage.getItem('app_version');
+        const lastUpdateTime = localStorage.getItem('last_update_time');
+        const now = Date.now();
         
-        // Se detectar versão diferente E já tiver uma versão salva (não primeira vez), mostrar banner
-        // IMPORTANTE: Só mostrar se realmente mudou a versão do app, não o html_timestamp
-        if (storedAppVersion && storedAppVersion !== appVersion) {
+        // Se atualizou recentemente (últimos 10 segundos), não mostrar banner
+        const recentlyUpdated = lastUpdateTime && (now - parseInt(lastUpdateTime)) < 10000;
+        
+        // Se detectar versão diferente E já tiver uma versão salva (não primeira vez) E não atualizou recentemente
+        if (storedAppVersion && storedAppVersion !== appVersion && !recentlyUpdated) {
             // Criar banner antes de qualquer outro script carregar
             const banner = document.createElement('div');
             banner.id = 'version-update-banner-inline';
             banner.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #ff9800; color: white; padding: 12px; text-align: center; z-index: 99999; box-shadow: 0 2px 4px rgba(0,0,0,0.2);';
-            banner.innerHTML = '<span>🔄 Nova versão disponível!</span> <button onclick="window.location.href=window.location.href.split(\'?\')[0]+\'?_v=\'+Date.now()" style="margin-left: 15px; padding: 6px 12px; background: white; color: #ff9800; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Atualizar Agora</button> <button onclick="this.parentElement.remove()" style="margin-left: 10px; background: transparent; color: white; border: 1px solid white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">✕</button>';
+            banner.innerHTML = '<span>🔄 Nova versão disponível!</span> <button onclick="localStorage.setItem(\'last_update_time\', Date.now().toString()); localStorage.setItem(\'app_version\', \'' + appVersion + '\'); window.location.href=window.location.href.split(\'?\')[0]+\'?_v=\'+Date.now()" style="margin-left: 15px; padding: 6px 12px; background: white; color: #ff9800; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Atualizar Agora</button> <button onclick="this.parentElement.remove()" style="margin-left: 10px; background: transparent; color: white; border: 1px solid white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">✕</button>';
             if (document.body) {
                 document.body.insertBefore(banner, document.body.firstChild);
             } else {
@@ -249,13 +253,16 @@
             .then(data => {
                 if (data && data.app_version) {
                     const stored = localStorage.getItem('app_version');
-                    // Só mostrar banner se versão realmente mudou
-                    if (stored && stored !== data.app_version) {
+                    const lastUpdate = localStorage.getItem('last_update_time');
+                    const recentlyUpdated = lastUpdate && (Date.now() - parseInt(lastUpdate)) < 10000;
+                    
+                    // Só mostrar banner se versão realmente mudou E não atualizou recentemente
+                    if (stored && stored !== data.app_version && !recentlyUpdated) {
                         if (!document.getElementById('version-update-banner-inline')) {
                             const b = document.createElement('div');
                             b.id = 'version-update-banner-inline';
                             b.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #ff9800; color: white; padding: 12px; text-align: center; z-index: 99999; box-shadow: 0 2px 4px rgba(0,0,0,0.2);';
-                            b.innerHTML = '<span>🔄 Nova versão disponível!</span> <button onclick="window.location.href=window.location.href.split(\'?\')[0]+\'?_v=\'+Date.now()" style="margin-left: 15px; padding: 6px 12px; background: white; color: #ff9800; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Atualizar Agora</button> <button onclick="this.parentElement.remove()" style="margin-left: 10px; background: transparent; color: white; border: 1px solid white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">✕</button>';
+                            b.innerHTML = '<span>🔄 Nova versão disponível!</span> <button onclick="localStorage.setItem(\'last_update_time\', Date.now().toString()); localStorage.setItem(\'app_version\', \'' + data.app_version + '\'); window.location.href=window.location.href.split(\'?\')[0]+\'?_v=\'+Date.now()" style="margin-left: 15px; padding: 6px 12px; background: white; color: #ff9800; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Atualizar Agora</button> <button onclick="this.parentElement.remove()" style="margin-left: 10px; background: transparent; color: white; border: 1px solid white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">✕</button>';
                             if (document.body) {
                                 document.body.insertBefore(b, document.body.firstChild);
                             }

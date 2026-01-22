@@ -160,6 +160,7 @@ def index():
     html_timestamp = str(int(time.time()))  # Timestamp único por requisição
     
     # Se for check de versão, retornar apenas a versão
+    # IMPORTANTE: Ignorar redirecionamento para check_version
     if request.args.get('check_version'):
         response = jsonify({
             'app_version': cache_version,

@@ -127,7 +127,10 @@ def index():
     """Página principal"""
     # Não inicializar banco na página principal para evitar erros
     # O banco será inicializado quando necessário nas rotas de API
-    return render_template('index.html')
+    # Cache busting: usar variável de ambiente do Vercel ou timestamp simples
+    import time
+    cache_version = os.getenv('VERCEL_GIT_COMMIT_SHA', '')[:8] if os.getenv('VERCEL_GIT_COMMIT_SHA') else str(int(time.time()))
+    return render_template('index.html', cache_version=cache_version)
 
 @app.route('/api/produtos', methods=['GET'])
 def listar_produtos():

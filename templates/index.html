@@ -195,16 +195,15 @@
     <!-- Script inline para verificação de versão - funciona mesmo com HTML antigo em cache -->
     <script>
     (function() {
-        // Versão do HTML atual (muda a cada requisição)
-        const htmlVersion = '{{ html_timestamp }}';
+        // Versão do app (muda a cada minuto ou deploy)
         const appVersion = '{{ cache_version }}';
         
         // Verificar se há versão antiga salva
-        const storedHtmlVersion = localStorage.getItem('html_version');
         const storedAppVersion = localStorage.getItem('app_version');
         
         // Se detectar versão diferente, mostrar banner IMEDIATAMENTE
-        if (storedHtmlVersion && storedHtmlVersion !== htmlVersion) {
+        // Mas só se já tiver uma versão salva (não na primeira vez)
+        if (storedAppVersion && storedAppVersion !== appVersion) {
             // Criar banner antes de qualquer outro script carregar
             const banner = document.createElement('div');
             banner.id = 'version-update-banner-inline';
@@ -219,11 +218,12 @@
             }
         }
         
-        // Salvar versões atuais
-        localStorage.setItem('html_version', htmlVersion);
-        localStorage.setItem('app_version', appVersion);
+        // Salvar versão atual (só atualiza se mudou)
+        if (!storedAppVersion || storedAppVersion !== appVersion) {
+            localStorage.setItem('app_version', appVersion);
+        }
         
-        // Verificar periodicamente (a cada 15 segundos - muito frequente)
+        // Verificar periodicamente (a cada 60 segundos)
         setInterval(function() {
             fetch('/?check_version=1&_=' + Date.now(), { 
                 cache: 'no-store',
@@ -248,7 +248,7 @@
                 }
             })
             .catch(() => {});
-        }, 15000);
+        }, 60000);
     })();
     </script>
 

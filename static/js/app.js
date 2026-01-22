@@ -1,8 +1,12 @@
 // ============================================
 // SISTEMA DE ATUALIZAÇÃO AUTOMÁTICA DE VERSÃO
 // Executa IMEDIATAMENTE, antes de qualquer coisa
+// Versão agressiva para mobile
 // ============================================
 (function() {
+    // Detectar se é mobile
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
     // Função para forçar atualização completa
     function forcarAtualizacao() {
         console.log('🔄 Nova versão detectada! Forçando atualização...');
@@ -21,22 +25,46 @@
             }).catch(() => {});
         }
         
-        // Forçar reload sem cache
-        if (location.search.indexOf('_nocache=') === -1) {
-            location.href = location.href.split('?')[0] + '?_nocache=' + Date.now();
+        // Para mobile, usar estratégia mais agressiva
+        if (isMobile) {
+            // Adicionar timestamp único na URL para forçar reload
+            const url = new URL(location.href);
+            url.searchParams.set('_force_reload', Date.now());
+            // Tentar usar replaceState primeiro (mais suave)
+            try {
+                history.replaceState(null, '', url);
+                location.reload(true);
+            } catch(e) {
+                // Fallback: redirect direto
+                location.href = url.toString();
+            }
         } else {
-            location.reload(true);
+            // Desktop: estratégia normal
+            if (location.search.indexOf('_nocache=') === -1) {
+                location.href = location.href.split('?')[0] + '?_nocache=' + Date.now();
+            } else {
+                location.reload(true);
+            }
         }
     }
     
     // Verificar versão imediatamente ao carregar o JS
-    fetch('/?check_version=1&_=' + Date.now(), { 
+    // Para mobile, usar fetch com mais opções anti-cache
+    const fetchOptions = {
         cache: 'no-store',
         headers: { 
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
         }
-    })
+    };
+    
+    // Adicionar timestamp único na URL para mobile
+    if (isMobile) {
+        fetchOptions.headers['X-Requested-With'] = 'XMLHttpRequest';
+    }
+    
+    fetch('/?check_version=1&_=' + Date.now() + '&_mobile=' + (isMobile ? '1' : '0'), fetchOptions)
         .then(response => {
             if (!response.ok) return null;
             return response.json();
@@ -55,15 +83,10 @@
         })
         .catch(() => {}); // Ignorar erros silenciosamente
     
-    // Verificar periodicamente (a cada 10 segundos)
+    // Verificar periodicamente (a cada 5 segundos para mobile, 10 para desktop)
+    const intervalo = isMobile ? 5000 : 10000;
     setInterval(function() {
-        fetch('/?check_version=1&_=' + Date.now(), { 
-            cache: 'no-store',
-            headers: { 
-                'Cache-Control': 'no-cache',
-                'Pragma': 'no-cache'
-            }
-        })
+        fetch('/?check_version=1&_=' + Date.now() + '&_mobile=' + (isMobile ? '1' : '0'), fetchOptions)
             .then(response => {
                 if (!response.ok) return null;
                 return response.json();
@@ -78,17 +101,11 @@
                 }
             })
             .catch(() => {});
-    }, 10000); // Verificar a cada 10 segundos
+    }, intervalo);
     
     // Verificar quando a página ganha foco
     window.addEventListener('focus', function() {
-        fetch('/?check_version=1&_=' + Date.now(), { 
-            cache: 'no-store',
-            headers: { 
-                'Cache-Control': 'no-cache',
-                'Pragma': 'no-cache'
-            }
-        })
+        fetch('/?check_version=1&_=' + Date.now() + '&_mobile=' + (isMobile ? '1' : '0'), fetchOptions)
             .then(response => {
                 if (!response.ok) return null;
                 return response.json();
@@ -104,6 +121,29 @@
             })
             .catch(() => {});
     });
+    
+    // Para mobile: também verificar quando a página fica visível (volta do background)
+    if (isMobile && document.visibilityState) {
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible') {
+                fetch('/?check_version=1&_=' + Date.now() + '&_mobile=1', fetchOptions)
+                    .then(response => {
+                        if (!response.ok) return null;
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data && data.app_version) {
+                            const storedVersion = localStorage.getItem('app_version');
+                            if (storedVersion && storedVersion !== data.app_version) {
+                                console.log('Nova versão detectada ao voltar:', data.app_version);
+                                forcarAtualizacao();
+                            }
+                        }
+                    })
+                    .catch(() => {});
+            }
+        });
+    }
 })();
 // ============================================
 

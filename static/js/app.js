@@ -1,3 +1,112 @@
+// ============================================
+// SISTEMA DE ATUALIZAÇÃO AUTOMÁTICA DE VERSÃO
+// Executa IMEDIATAMENTE, antes de qualquer coisa
+// ============================================
+(function() {
+    // Função para forçar atualização completa
+    function forcarAtualizacao() {
+        console.log('🔄 Nova versão detectada! Forçando atualização...');
+        // Limpar todos os caches possíveis
+        try {
+            localStorage.clear();
+            sessionStorage.clear();
+        } catch(e) {}
+        
+        // Tentar limpar cache do navegador (se suportado)
+        if ('caches' in window) {
+            caches.keys().then(function(names) {
+                for (let name of names) {
+                    caches.delete(name);
+                }
+            }).catch(() => {});
+        }
+        
+        // Forçar reload sem cache
+        if (location.search.indexOf('_nocache=') === -1) {
+            location.href = location.href.split('?')[0] + '?_nocache=' + Date.now();
+        } else {
+            location.reload(true);
+        }
+    }
+    
+    // Verificar versão imediatamente ao carregar o JS
+    fetch('/?check_version=1&_=' + Date.now(), { 
+        cache: 'no-store',
+        headers: { 
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+        }
+    })
+        .then(response => {
+            if (!response.ok) return null;
+            return response.json();
+        })
+        .then(data => {
+            if (data && data.app_version) {
+                const storedVersion = localStorage.getItem('app_version');
+                if (storedVersion && storedVersion !== data.app_version) {
+                    console.log('Versão mudou:', storedVersion, '->', data.app_version);
+                    forcarAtualizacao();
+                    return; // Não continuar execução
+                }
+                // Salvar versão atual
+                localStorage.setItem('app_version', data.app_version);
+            }
+        })
+        .catch(() => {}); // Ignorar erros silenciosamente
+    
+    // Verificar periodicamente (a cada 10 segundos)
+    setInterval(function() {
+        fetch('/?check_version=1&_=' + Date.now(), { 
+            cache: 'no-store',
+            headers: { 
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
+        })
+            .then(response => {
+                if (!response.ok) return null;
+                return response.json();
+            })
+            .then(data => {
+                if (data && data.app_version) {
+                    const storedVersion = localStorage.getItem('app_version');
+                    if (storedVersion && storedVersion !== data.app_version) {
+                        console.log('Nova versão detectada:', data.app_version);
+                        forcarAtualizacao();
+                    }
+                }
+            })
+            .catch(() => {});
+    }, 10000); // Verificar a cada 10 segundos
+    
+    // Verificar quando a página ganha foco
+    window.addEventListener('focus', function() {
+        fetch('/?check_version=1&_=' + Date.now(), { 
+            cache: 'no-store',
+            headers: { 
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
+        })
+            .then(response => {
+                if (!response.ok) return null;
+                return response.json();
+            })
+            .then(data => {
+                if (data && data.app_version) {
+                    const storedVersion = localStorage.getItem('app_version');
+                    if (storedVersion && storedVersion !== data.app_version) {
+                        console.log('Nova versão detectada ao focar:', data.app_version);
+                        forcarAtualizacao();
+                    }
+                }
+            })
+            .catch(() => {});
+    });
+})();
+// ============================================
+
 let produtos = [];
 let produtosFiltrados = [];
 let modoEdicao = false;

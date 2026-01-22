@@ -194,6 +194,20 @@
         </div>
     </div>
 
+    <!-- Registrar Service Worker para forçar atualização no mobile -->
+    <script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/static/sw.js', { scope: '/' })
+            .then(() => console.log('Service Worker registrado'))
+            .catch(err => console.log('Erro ao registrar Service Worker:', err));
+        
+        // Forçar atualização do Service Worker
+        navigator.serviceWorker.ready.then(registration => {
+            registration.update();
+        });
+    }
+    </script>
+
     <!-- Script inline para verificação de versão - funciona mesmo com HTML antigo em cache -->
     <script>
     (function() {

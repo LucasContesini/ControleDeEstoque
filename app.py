@@ -145,6 +145,8 @@ def index():
     # Usar timestamp arredondado para minutos (muda a cada minuto)
     # Isso força atualização mesmo sem mudanças no código
     cache_version = str(int(time.time()) // 60)  # Muda a cada minuto
+    # HTML timestamp muda a cada requisição para detectar atualizações mais rapidamente
+    html_timestamp = str(int(time.time()))  # Timestamp único por requisição
     
     # Se for check de versão, retornar apenas a versão
     if request.args.get('check_version'):

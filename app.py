@@ -125,9 +125,12 @@ def handle_exception(e):
 # Middleware para adicionar headers anti-cache em respostas HTML
 @app.after_request
 def add_no_cache_headers(response):
-    """Adiciona headers para desabilitar cache do navegador em HTML"""
+    """Adiciona headers para desabilitar cache do navegador e CDN em HTML"""
     if response.content_type and 'text/html' in response.content_type:
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+        # Headers para desabilitar cache completamente (browser e CDN)
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0'
+        response.headers['CDN-Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+        response.headers['Vercel-CDN-Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
     return response
@@ -150,8 +153,10 @@ def index():
     # Adicionar timestamp único para forçar atualização do HTML
     html_timestamp = str(int(time.time()))
     response = make_response(render_template('index.html', cache_version=cache_version, html_timestamp=html_timestamp))
-    # Garantir headers anti-cache
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    # Garantir headers anti-cache para browser e CDN do Vercel
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0'
+    response.headers['CDN-Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Vercel-CDN-Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     # Adicionar header ETag único para forçar revalidação
@@ -519,7 +524,9 @@ def uploaded_file(filename):
 def serve_css(filename):
     """Serve arquivos CSS com headers anti-cache"""
     response = send_from_directory(os.path.join(app.static_folder, 'css'), filename)
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0'
+    response.headers['CDN-Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Vercel-CDN-Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     return response
@@ -528,10 +535,24 @@ def serve_css(filename):
 def serve_js(filename):
     """Serve arquivos JS com headers anti-cache"""
     response = send_from_directory(os.path.join(app.static_folder, 'js'), filename)
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0'
+    response.headers['CDN-Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Vercel-CDN-Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     return response
+
+@app.route('/api/debug/cache')
+def debug_cache():
+    """Endpoint para verificar status do cache do Vercel"""
+    import time
+    cache_info = {
+        'timestamp': int(time.time()),
+        'cache_version': str(int(time.time()) // 60),
+        'headers_received': dict(request.headers),
+        'recommendation': 'Verifique o header x-vercel-cache na resposta. MISS = do origin, HIT = do cache'
+    }
+    return jsonify(cache_info)
 
 @app.route('/api/vendas', methods=['GET'])
 def listar_vendas():

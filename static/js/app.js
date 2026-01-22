@@ -975,6 +975,14 @@ function renderizarVendas() {
                         <h3>${venda.produto_titulo}</h3>
                         <div class="venda-data">📅 ${dataFormatada}</div>
                     </div>
+                    <div class="venda-acoes">
+                        <button class="btn-editar-venda" onclick="editarVenda(${venda.id})" title="Editar venda">
+                            ✏️
+                        </button>
+                        <button class="btn-deletar-venda" onclick="deletarVenda(${venda.id}, '${venda.produto_titulo.replace(/'/g, "\\'")}')" title="Deletar venda">
+                            🗑️
+                        </button>
+                    </div>
                 </div>
                 <div class="venda-valores">
                     <div class="venda-valor-item compra">
@@ -1046,13 +1054,109 @@ function fecharModalVenda() {
     const btnSalvar = document.querySelector('#form-venda button[type="submit"]');
     if (btnSalvar) {
         btnSalvar.disabled = false;
-        btnSalvar.innerHTML = 'Registrar Venda';
+        btnSalvar.textContent = 'Registrar Venda';
     }
+    
+    // Limpar campos
+    document.getElementById('venda-id').value = '';
+    document.getElementById('modal-venda-titulo').textContent = 'Registrar Venda';
+    document.getElementById('venda-produto-nome').readOnly = false;
+    document.getElementById('venda-produto-nome').style.background = '#f5f5f5';
     
     document.getElementById('modal-venda').style.display = 'none';
     document.getElementById('form-venda').reset();
     document.getElementById('venda-observacoes-container').innerHTML = '';
     observacoesCount = 0;
+}
+
+async function editarVenda(vendaId) {
+    try {
+        const response = await fetch(`/api/vendas/${vendaId}`);
+        if (!response.ok) {
+            throw new Error('Erro ao carregar venda');
+        }
+        const venda = await response.json();
+        
+        // Preencher modal com dados da venda
+        document.getElementById('venda-id').value = venda.id;
+        document.getElementById('venda-produto-id').value = venda.produto_id || '';
+        document.getElementById('venda-produto-titulo').value = venda.produto_titulo;
+        document.getElementById('venda-produto-nome').value = venda.produto_titulo;
+        document.getElementById('venda-produto-nome').readOnly = true;
+        document.getElementById('venda-produto-nome').style.background = '#f5f5f5';
+        document.getElementById('venda-valor-compra').value = venda.valor_compra || 0;
+        document.getElementById('venda-valor-venda').value = venda.valor_venda || '';
+        
+        // Formatar data para o input date (YYYY-MM-DD)
+        const dataVenda = venda.data_venda ? venda.data_venda.split('T')[0] : new Date().toISOString().split('T')[0];
+        document.getElementById('venda-data').value = dataVenda;
+        document.getElementById('venda-onde').value = venda.onde_vendeu || '';
+        
+        // Preencher observações
+        document.getElementById('venda-observacoes-container').innerHTML = '';
+        observacoesCount = 0;
+        if (venda.observacoes) {
+            const obsArray = venda.observacoes.split(' | ');
+            obsArray.forEach(obs => {
+                if (obs.trim()) {
+                    const id = observacoesCount++;
+                    const div = document.createElement('div');
+                    div.className = 'especificacao-item';
+                    div.innerHTML = `
+                        <input type="text" placeholder="Observação" class="obs-chave" data-id="${id}" value="${obs.trim().replace(/"/g, '&quot;')}">
+                        <button type="button" onclick="removerObservacao(${id})">Remover</button>
+                    `;
+                    document.getElementById('venda-observacoes-container').appendChild(div);
+                }
+            });
+        }
+        
+        // Atualizar título do modal e botão
+        document.getElementById('modal-venda-titulo').textContent = 'Editar Venda';
+        const btnSalvar = document.querySelector('#form-venda button[type="submit"]');
+        if (btnSalvar) {
+            btnSalvar.textContent = 'Salvar Alterações';
+        }
+        
+        // Atualizar resumo
+        atualizarResumoVenda();
+        
+        // Adicionar listener para atualizar resumo
+        const valorVendaInput = document.getElementById('venda-valor-venda');
+        valorVendaInput.removeEventListener('input', atualizarResumoVenda);
+        valorVendaInput.addEventListener('input', atualizarResumoVenda);
+        
+        document.getElementById('modal-venda').style.display = 'block';
+    } catch (error) {
+        console.error('Erro ao carregar venda:', error);
+        mostrarMensagem('Erro ao carregar venda: ' + error.message, 'erro');
+    }
+}
+
+async function deletarVenda(vendaId, produtoTitulo) {
+    if (!confirm(`Tem certeza que deseja deletar a venda de "${produtoTitulo}"?\n\nEsta ação irá restaurar 1 unidade no estoque do produto (se ainda existir).`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/vendas/${vendaId}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.erro || 'Erro ao deletar venda');
+        }
+        
+        mostrarMensagem('Venda deletada com sucesso!', 'sucesso');
+        
+        // Recarregar vendas e produtos
+        await carregarVendas();
+        await carregarProdutos();
+    } catch (error) {
+        console.error('Erro ao deletar venda:', error);
+        mostrarMensagem('Erro ao deletar venda: ' + error.message, 'erro');
+    }
 }
 
 function atualizarResumoVenda() {
@@ -1105,13 +1209,15 @@ function removerObservacao(id) {
 async function salvarVenda(event) {
     event.preventDefault();
     
+    const vendaId = document.getElementById('venda-id').value;
     const produtoId = parseInt(document.getElementById('venda-produto-id').value);
     const valorVenda = parseFloat(document.getElementById('venda-valor-venda').value);
     const dataVenda = document.getElementById('venda-data').value;
     const ondeVendeu = document.getElementById('venda-onde').value;
+    const isEdicao = vendaId && vendaId !== '';
     
     // Validações básicas
-    if (!produtoId || produtoId <= 0) {
+    if (!isEdicao && (!produtoId || produtoId <= 0)) {
         mostrarMensagem('Produto inválido', 'erro');
         return;
     }
@@ -1157,7 +1263,7 @@ async function salvarVenda(event) {
     
     const textoOriginal = btnSalvar.innerHTML;
     btnSalvar.disabled = true;
-    btnSalvar.innerHTML = 'Registrando...';
+    btnSalvar.innerHTML = isEdicao ? 'Salvando...' : 'Registrando...';
     
     // Timeout de segurança (30 segundos)
     const timeoutId = setTimeout(() => {
@@ -1168,8 +1274,11 @@ async function salvarVenda(event) {
     
     // Garantir que o botão seja sempre reabilitado, mesmo em caso de erro
     try {
-        const response = await fetch('/api/vendas', {
-            method: 'POST',
+        const url = isEdicao ? `/api/vendas/${vendaId}` : '/api/vendas';
+        const method = isEdicao ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
             headers: {
                 'Content-Type': 'application/json'
             },
@@ -1192,7 +1301,7 @@ async function salvarVenda(event) {
         }
         
         if (response.ok) {
-            mostrarMensagem('Venda registrada com sucesso!', 'sucesso');
+            mostrarMensagem(isEdicao ? 'Venda atualizada com sucesso!' : 'Venda registrada com sucesso!', 'sucesso');
             fecharModalVenda();
             // Atualizar produtos e vendas
             try {
@@ -1202,14 +1311,14 @@ async function salvarVenda(event) {
                 console.error('Erro ao atualizar após venda:', updateError);
             }
         } else {
-            mostrarMensagem(data.erro || 'Erro ao registrar venda', 'erro');
+            mostrarMensagem(data.erro || (isEdicao ? 'Erro ao atualizar venda' : 'Erro ao registrar venda'), 'erro');
             btnSalvar.disabled = false;
             btnSalvar.innerHTML = textoOriginal;
         }
     } catch (error) {
         clearTimeout(timeoutId);
-        console.error('Erro ao registrar venda:', error);
-        mostrarMensagem('Erro ao registrar venda: ' + (error.message || 'Erro desconhecido'), 'erro');
+        console.error('Erro ao salvar venda:', error);
+        mostrarMensagem('Erro ao salvar venda: ' + (error.message || 'Erro desconhecido'), 'erro');
         // Sempre reabilitar o botão em caso de erro
         btnSalvar.disabled = false;
         btnSalvar.innerHTML = textoOriginal;

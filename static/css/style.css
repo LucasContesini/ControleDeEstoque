@@ -955,6 +955,31 @@ form {
     flex: 1;
 }
 
+.venda-acoes {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.btn-editar-venda,
+.btn-deletar-venda {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 5px 8px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.btn-editar-venda:hover {
+    background: #e3f2fd;
+}
+
+.btn-deletar-venda:hover {
+    background: #ffebee;
+}
+
 .venda-produto h3 {
     color: #667eea;
     margin-bottom: 3px;

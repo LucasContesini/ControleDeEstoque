@@ -73,10 +73,11 @@
     <div id="modal-venda" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Registrar Venda</h2>
+                <h2 id="modal-venda-titulo">Registrar Venda</h2>
                 <span class="fechar" onclick="fecharModalVenda()">&times;</span>
             </div>
             <form id="form-venda" onsubmit="salvarVenda(event)">
+                <input type="hidden" id="venda-id">
                 <input type="hidden" id="venda-produto-id">
                 <input type="hidden" id="venda-produto-titulo">
                 <input type="hidden" id="venda-valor-compra">

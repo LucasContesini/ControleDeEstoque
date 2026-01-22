@@ -631,6 +631,158 @@ def criar_venda():
         traceback.print_exc()
         return jsonify({'erro': str(e)}), 500
 
+@app.route('/api/vendas/<int:venda_id>', methods=['GET'])
+def obter_venda(venda_id):
+    """Obtém uma venda específica por ID"""
+    ensure_db_initialized()
+    conn = get_db()
+    cursor = get_cursor(conn)
+    placeholder = get_placeholder()
+    
+    cursor.execute(f'SELECT * FROM vendas WHERE id = {placeholder}', (venda_id,))
+    venda = cursor.fetchone()
+    
+    cursor.close()
+    conn.close()
+    
+    if not venda:
+        return jsonify({'erro': 'Venda não encontrada'}), 404
+    
+    # Converter para dict
+    venda_dict = venda_para_dict(venda)
+    return jsonify(venda_dict)
+
+@app.route('/api/vendas/<int:venda_id>', methods=['PUT'])
+def atualizar_venda(venda_id):
+    """Atualiza uma venda existente"""
+    ensure_db_initialized()
+    try:
+        data = request.get_json()
+        
+        valor_venda = float(data.get('valor_venda', 0) or 0)
+        data_venda = data.get('data_venda', '').strip()
+        onde_vendeu = data.get('onde_vendeu', '').strip()
+        observacoes = data.get('observacoes', '').strip()
+        
+        # Validações
+        if valor_venda <= 0:
+            return jsonify({'erro': 'Valor de venda deve ser maior que zero'}), 400
+        
+        if not data_venda:
+            return jsonify({'erro': 'Data da venda é obrigatória'}), 400
+        
+        if onde_vendeu not in ['mercado_livre', 'shopee']:
+            return jsonify({'erro': 'Onde vendeu deve ser "mercado_livre" ou "shopee"'}), 400
+        
+        conn = get_db()
+        cursor = get_cursor(conn)
+        placeholder = get_placeholder()
+        
+        # Buscar venda atual
+        cursor.execute(f'SELECT * FROM vendas WHERE id = {placeholder}', (venda_id,))
+        venda_atual = cursor.fetchone()
+        
+        if not venda_atual:
+            cursor.close()
+            conn.close()
+            return jsonify({'erro': 'Venda não encontrada'}), 404
+        
+        # Obter dados da venda atual
+        if DATABASE_TYPE == 'postgresql':
+            produto_id_antigo = venda_atual.get('produto_id')
+            valor_compra = float(venda_atual.get('valor_compra', 0) or 0)
+        else:
+            produto_id_antigo = venda_atual.get('produto_id')
+            valor_compra = float(venda_atual.get('valor_compra', 0) or 0)
+        
+        # Atualizar venda
+        if DATABASE_TYPE == 'postgresql':
+            cursor.execute('''
+                UPDATE vendas 
+                SET valor_venda = %s, data_venda = %s, onde_vendeu = %s, observacoes = %s
+                WHERE id = %s
+            ''', (valor_venda, data_venda, onde_vendeu, observacoes, venda_id))
+        else:
+            cursor.execute('''
+                UPDATE vendas 
+                SET valor_venda = ?, data_venda = ?, onde_vendeu = ?, observacoes = ?
+                WHERE id = ?
+            ''', (valor_venda, data_venda, onde_vendeu, observacoes, venda_id))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({'id': venda_id, 'mensagem': 'Venda atualizada com sucesso'}), 200
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'erro': str(e)}), 500
+
+@app.route('/api/vendas/<int:venda_id>', methods=['DELETE'])
+def deletar_venda(venda_id):
+    """Deleta uma venda e restaura o estoque do produto"""
+    ensure_db_initialized()
+    try:
+        conn = get_db()
+        cursor = get_cursor(conn)
+        placeholder = get_placeholder()
+        
+        # Buscar venda
+        cursor.execute(f'SELECT * FROM vendas WHERE id = {placeholder}', (venda_id,))
+        venda = cursor.fetchone()
+        
+        if not venda:
+            cursor.close()
+            conn.close()
+            return jsonify({'erro': 'Venda não encontrada'}), 404
+        
+        # Obter produto_id da venda
+        if DATABASE_TYPE == 'postgresql':
+            produto_id = venda.get('produto_id')
+        else:
+            produto_id = venda.get('produto_id')
+        
+        # Se a venda tinha um produto associado (não foi deletado), restaurar estoque
+        if produto_id:
+            cursor.execute(f'SELECT * FROM produtos WHERE id = {placeholder}', (produto_id,))
+            produto = cursor.fetchone()
+            
+            if produto:
+                # Restaurar 1 unidade no estoque
+                if DATABASE_TYPE == 'postgresql':
+                    quantidade_atual = int(produto.get('quantidade', 0) or 0)
+                    from datetime import datetime as dt
+                    data_atual = dt.now()
+                    cursor.execute('''
+                        UPDATE produtos 
+                        SET quantidade = %s, data_atualizacao = %s
+                        WHERE id = %s
+                    ''', (quantidade_atual + 1, data_atual, produto_id))
+                else:
+                    quantidade_atual = int(produto.get('quantidade', 0) or 0)
+                    data_atual = datetime.now().isoformat()
+                    cursor.execute('''
+                        UPDATE produtos 
+                        SET quantidade = ?, data_atualizacao = ?
+                        WHERE id = ?
+                    ''', (quantidade_atual + 1, data_atual, produto_id))
+        
+        # Deletar venda
+        cursor.execute(f'DELETE FROM vendas WHERE id = {placeholder}', (venda_id,))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({'mensagem': 'Venda deletada com sucesso'}), 200
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'erro': str(e)}), 500
+
 # Handlers de erro já registrados acima (antes das rotas)
 
 # Para desenvolvimento local e produção

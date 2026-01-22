@@ -511,6 +511,24 @@ def uploaded_file(filename):
         return redirect(filename)
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+@app.route('/static/css/<filename>')
+def serve_css(filename):
+    """Serve arquivos CSS com headers anti-cache"""
+    response = send_from_directory(os.path.join(app.static_folder, 'css'), filename)
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+@app.route('/static/js/<filename>')
+def serve_js(filename):
+    """Serve arquivos JS com headers anti-cache"""
+    response = send_from_directory(os.path.join(app.static_folder, 'js'), filename)
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
 @app.route('/api/vendas', methods=['GET'])
 def listar_vendas():
     """Lista todas as vendas ordenadas por data (mais recente primeiro)"""

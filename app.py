@@ -142,6 +142,15 @@ def index():
     # O banco será inicializado quando necessário nas rotas de API
     # Cache busting agressivo: timestamp que muda a cada minuto para forçar atualização
     import time
+    from flask import redirect, url_for
+    
+    # Se não tiver query parameter de versão, redirecionar com versão única
+    # Isso força navegador mobile a buscar HTML novo mesmo com cache
+    if not request.args.get('_v'):
+        deploy_timestamp = os.getenv('VERCEL_DEPLOYMENT_ID', str(int(time.time())))
+        version_param = f"{str(int(time.time()) // 60)}-{deploy_timestamp[:8]}"
+        return redirect(f'/?_v={version_param}', code=302)
+    
     # Usar timestamp arredondado para minutos (muda a cada minuto)
     # Isso força atualização mesmo sem mudanças no código
     # Adicionar timestamp de deploy para forçar atualização após purge

@@ -168,14 +168,19 @@ def index():
     # Adicionar timestamp único para forçar atualização do HTML
     html_timestamp = str(int(time.time()))
     response = make_response(render_template('index.html', cache_version=cache_version, html_timestamp=html_timestamp))
-    # Garantir headers anti-cache para browser e CDN do Vercel
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0'
+    # Headers ULTRA agressivos para forçar navegador mobile a buscar HTML novo
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0, private'
     response.headers['CDN-Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
     response.headers['Vercel-CDN-Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
-    # Adicionar header ETag único para forçar revalidação
-    response.headers['ETag'] = f'"{html_timestamp}"'
+    # Headers adicionais para mobile
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Last-Modified'] = time.strftime('%a, %d %b %Y %H:%M:%S GMT', time.gmtime())
+    # ETag único que muda sempre para forçar revalidação
+    response.headers['ETag'] = f'"{html_timestamp}-{deploy_timestamp[:8]}"'
+    # Vary header para garantir que cache seja específico
+    response.headers['Vary'] = 'Accept, Accept-Encoding'
     return response
 
 @app.route('/api/produtos', methods=['GET'])

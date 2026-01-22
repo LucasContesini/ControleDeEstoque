@@ -197,18 +197,23 @@
     (function() {
         // Versão do app (muda a cada minuto ou deploy)
         const appVersion = '{{ cache_version }}';
+        const htmlTimestamp = '{{ html_timestamp }}';
         
         // Verificar se há versão antiga salva
         const storedAppVersion = localStorage.getItem('app_version');
+        const storedHtmlTimestamp = localStorage.getItem('html_timestamp');
         
-        // Se detectar versão diferente, mostrar banner IMEDIATAMENTE
-        // Mas só se já tiver uma versão salva (não na primeira vez)
-        if (storedAppVersion && storedAppVersion !== appVersion) {
+        // Se detectar versão diferente OU HTML timestamp muito antigo (>5 minutos), mostrar banner
+        const timestampDiff = storedHtmlTimestamp ? (parseInt(htmlTimestamp) - parseInt(storedHtmlTimestamp)) : 0;
+        const isOldVersion = storedAppVersion && storedAppVersion !== appVersion;
+        const isOldHtml = storedHtmlTimestamp && timestampDiff > 300; // 5 minutos
+        
+        if (isOldVersion || isOldHtml) {
             // Criar banner antes de qualquer outro script carregar
             const banner = document.createElement('div');
             banner.id = 'version-update-banner-inline';
             banner.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #ff9800; color: white; padding: 12px; text-align: center; z-index: 99999; box-shadow: 0 2px 4px rgba(0,0,0,0.2);';
-            banner.innerHTML = '<span>🔄 Nova versão disponível!</span> <button onclick="location.reload(true)" style="margin-left: 15px; padding: 6px 12px; background: white; color: #ff9800; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Atualizar Agora</button> <button onclick="this.parentElement.remove()" style="margin-left: 10px; background: transparent; color: white; border: 1px solid white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">✕</button>';
+            banner.innerHTML = '<span>🔄 Nova versão disponível!</span> <button onclick="window.location.href=window.location.href.split(\'?\')[0]+\'?v=\'+Date.now()" style="margin-left: 15px; padding: 6px 12px; background: white; color: #ff9800; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Atualizar Agora</button> <button onclick="this.parentElement.remove()" style="margin-left: 10px; background: transparent; color: white; border: 1px solid white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">✕</button>';
             if (document.body) {
                 document.body.insertBefore(banner, document.body.firstChild);
             } else {
@@ -218,10 +223,9 @@
             }
         }
         
-        // Salvar versão atual (só atualiza se mudou)
-        if (!storedAppVersion || storedAppVersion !== appVersion) {
-            localStorage.setItem('app_version', appVersion);
-        }
+        // Salvar versões atuais
+        localStorage.setItem('app_version', appVersion);
+        localStorage.setItem('html_timestamp', htmlTimestamp);
         
         // Verificar periodicamente (a cada 60 segundos)
         setInterval(function() {
@@ -238,7 +242,7 @@
                             const b = document.createElement('div');
                             b.id = 'version-update-banner-inline';
                             b.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; background: #ff9800; color: white; padding: 12px; text-align: center; z-index: 99999; box-shadow: 0 2px 4px rgba(0,0,0,0.2);';
-                            b.innerHTML = '<span>🔄 Nova versão disponível!</span> <button onclick="location.reload(true)" style="margin-left: 15px; padding: 6px 12px; background: white; color: #ff9800; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Atualizar Agora</button> <button onclick="this.parentElement.remove()" style="margin-left: 10px; background: transparent; color: white; border: 1px solid white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">✕</button>';
+                            b.innerHTML = '<span>🔄 Nova versão disponível!</span> <button onclick="window.location.href=window.location.href.split(\'?\')[0]+\'?v=\'+Date.now()" style="margin-left: 15px; padding: 6px 12px; background: white; color: #ff9800; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Atualizar Agora</button> <button onclick="this.parentElement.remove()" style="margin-left: 10px; background: transparent; color: white; border: 1px solid white; padding: 6px 12px; border-radius: 4px; cursor: pointer;">✕</button>';
                             if (document.body) {
                                 document.body.insertBefore(b, document.body.firstChild);
                             }
